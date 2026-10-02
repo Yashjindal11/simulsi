@@ -417,6 +417,9 @@ class Resource:
         }
         out[p + "wait.mean"] = float(s["wait"]["mean"])
         out[p + "wait.max"] = float(s["wait"]["max"])
+        out[p + "wait.total"] = float(s["wait"]["sum"])
+        out[p + "busy_time"] = self.busy.area()
+        out[p + "capacity_time"] = self.capacity_level.area()
         if "p95" in s["wait"]:
             out[p + "wait.p95"] = float(s["wait"]["p95"])
         return out

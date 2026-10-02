@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 
@@ -56,6 +57,20 @@ class EventLog:
 
     def to_dicts(self) -> list[dict[str, Any]]:
         return [r.to_dict() for r in self.records]
+
+    def export(self, path: str | Path) -> Path:
+        """Write the log as JSON, CSV or Parquet, chosen by the file suffix."""
+        from simulsi.serialization.io import write_csv, write_json, write_parquet
+
+        p = Path(path)
+        suffix = p.suffix.lower()
+        if suffix == ".json":
+            return write_json({"records": self.to_dicts(), "dropped": self.dropped}, p)
+        if suffix == ".csv":
+            return write_csv(self.to_dicts(), p)
+        if suffix == ".parquet":
+            return write_parquet(self.to_dicts(), p)
+        raise ValueError(f"unsupported log format {suffix!r}; use .json, .csv or .parquet")
 
     def __len__(self) -> int:
         return len(self.records)

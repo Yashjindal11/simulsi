@@ -371,6 +371,13 @@ class ExperimentResult:
     def errors(self) -> list[ReplicationRecord]:
         return [r for r in self.records if r.status == "error"]
 
+    def derive(self, fn: Callable[[Mapping[str, float]], Mapping[str, float]]) -> ExperimentResult:
+        """Add derived metrics to every successful record in place, e.g. ``result.derive(costs.metrics)``."""
+        for r in self.records:
+            if r.status == "ok":
+                r.metrics.update(fn(r.metrics))
+        return self
+
     def values(
         self, metric: str, scenario: str | None = None
     ) -> np.ndarray[Any, np.dtype[np.float64]]:

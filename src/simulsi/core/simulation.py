@@ -48,6 +48,7 @@ class SimulationResult:
     details: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     log: EventLog | None = None
+    series: dict[str, list[tuple[float, float]]] = field(default_factory=dict)
 
     @property
     def duration(self) -> float:
@@ -330,7 +331,29 @@ class Simulation:
             details=self.details(),
             warnings=list(self.warnings),
             log=self.log,
+            series=self.series(),
         )
+
+    def series(self) -> dict[str, list[tuple[float, float]]]:
+        """Recorded step-function time series (empty when ``record_series=False``)."""
+        out: dict[str, list[tuple[float, float]]] = {}
+        if not self.metrics.record_series:
+            return out
+        for name, r in self.resources.items():
+            for key, tw in (
+                ("busy", r.busy),
+                ("queue_length", r.queue_length),
+                ("capacity", r.effective_level),
+            ):
+                if tw.series is not None:
+                    out[f"resource.{name}.{key}"] = list(tw.series)
+        for name, q in self.queues.items():
+            if q.length.series is not None:
+                out[f"queue.{name}.length"] = list(q.length.series)
+        for name, g in self.metrics.gauges.items():
+            if g.series is not None:
+                out[name] = list(g.series)
+        return out
 
     def flat_metrics(self) -> dict[str, float]:
         flat: dict[str, float] = {
@@ -515,7 +538,11 @@ class Simulation:
         if self.log is not None:
             self.log.append(
                 LogRecord(
-                    self.clock.now, "entity.created", entity=entity.id, new_state=entity.state
+                    self.clock.now,
+                    "entity.created",
+                    entity=entity.id,
+                    new_state=entity.state,
+                    metadata={"entity_type": etype},
                 )
             )
         return entity
