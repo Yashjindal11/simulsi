@@ -43,9 +43,9 @@ No. There is no LLM, no API key, no telemetry and no network access.
 ## How fast is it?
 
 It is a pure-Python engine. On the development machine (an Apple silicon
-laptop, Python 3.12) it processes a few hundred thousand simple events per
-second, and roughly 150-200k events per second for process-based queueing
-models. Measured numbers, and how to reproduce them,
+laptop, Python 3.12) it processes roughly 440k simple events per second, and
+about 240k events per second for process-based queueing models. Measured
+numbers, and how to reproduce them,
 are in [benchmarks/README.md](../benchmarks/README.md). For many replications,
 use `workers=N`.
 

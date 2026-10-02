@@ -1,0 +1,87 @@
+{
+  "timestamp": "2026-10-02T13:29:52+00:00",
+  "environment": {
+    "simulsi": "0.1.0.dev0",
+    "python": "3.12.15",
+    "implementation": "CPython",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "machine": "arm64",
+    "cpu_count": 10,
+    "numpy": "2.5.3",
+    "scipy": "1.18.1"
+  },
+  "results": [
+    {
+      "name": "events",
+      "size": 10000,
+      "events": 10000,
+      "seconds": 0.02287337499728892,
+      "peak_memory_mb": 0.021376,
+      "events_per_second": 437189.5271766959
+    },
+    {
+      "name": "events",
+      "size": 100000,
+      "events": 100000,
+      "seconds": 0.22796925000147894,
+      "peak_memory_mb": 0.024552,
+      "events_per_second": 438655.6520203986
+    },
+    {
+      "name": "events",
+      "size": 1000000,
+      "events": 1000000,
+      "seconds": 2.280677333998028,
+      "peak_memory_mb": null,
+      "events_per_second": 438466.23329526396
+    },
+    {
+      "name": "processes",
+      "size": 10000,
+      "events": 38501,
+      "seconds": 0.154003791991272,
+      "peak_memory_mb": 0.30727,
+      "events_per_second": 250000.33766819196
+    },
+    {
+      "name": "processes",
+      "size": 100000,
+      "events": 385581,
+      "seconds": 1.5953388330090092,
+      "peak_memory_mb": 0.541438,
+      "events_per_second": 241692.22990250032
+    },
+    {
+      "name": "processes",
+      "size": 1000000,
+      "events": 3850935,
+      "seconds": 16.33574041700922,
+      "peak_memory_mb": null,
+      "events_per_second": 235736.7894993178
+    },
+    {
+      "name": "experiment(workers=1)",
+      "size": 16,
+      "events": 1119489,
+      "seconds": 4.586712417003582,
+      "peak_memory_mb": null,
+      "events_per_second": 244072.20209618946
+    },
+    {
+      "name": "experiment(workers=2)",
+      "size": 16,
+      "events": 1119489,
+      "seconds": 3.816136749999714,
+      "peak_memory_mb": null,
+      "events_per_second": 293356.6256502951
+    },
+    {
+      "name": "experiment(workers=4)",
+      "size": 16,
+      "events": 1119489,
+      "seconds": 3.399756458995398,
+      "peak_memory_mb": null,
+      "events_per_second": 329285.0571804783
+    }
+  ]
+}

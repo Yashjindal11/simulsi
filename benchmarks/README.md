@@ -1,0 +1,59 @@
+# Benchmarks
+
+```bash
+python benchmarks/run_benchmarks.py          # full suite, ~1 minute
+python benchmarks/run_benchmarks.py --quick  # 10k / 100k only
+simulsi benchmark                            # same measurements from the CLI
+```
+
+The script writes [`results/latest.json`](results/latest.json) (raw numbers
+plus the environment) and [`results/latest.md`](results/latest.md).
+
+## What is measured
+
+| Benchmark | Description | Size means |
+|---|---|---|
+| `events` | Pure engine overhead: callback events in 100 interleaved chains with exponential delays (heap push/pop, clock, dispatch). | events |
+| `processes` | An M/M/2 queue written with generator processes, a resource with contention, and metrics: about 3.85 events per customer. | customers |
+| `experiment(workers=N)` | 16 replications of the built-in M/M/1 model (20,000 time units each), serial and in worker processes. | replications |
+| `peak_memory_mb` | `tracemalloc` peak during a separate run (sizes up to 100k only, because tracing slows the run). | |
+
+## Results
+
+Measured on 2026-10-02 on the development machine. These are single
+measurements, not averages over repeated runs; expect some run-to-run
+variation. Re-run the script on your hardware rather than relying on them.
+
+- Python 3.12.15 (CPython), NumPy 2.5.3, SimulSI 0.1.0.dev0
+- macOS 26.6.2 on Apple silicon (arm64), 10 logical CPUs
+
+| name | size | events | seconds | events/s | peak MB |
+|---|---:|---:|---:|---:|---:|
+| events | 10,000 | 10,000 | 0.023 | 437,190 | 0.02 |
+| events | 100,000 | 100,000 | 0.228 | 438,656 | 0.02 |
+| events | 1,000,000 | 1,000,000 | 2.281 | 438,466 | - |
+| processes | 10,000 | 38,501 | 0.154 | 250,000 | 0.31 |
+| processes | 100,000 | 385,581 | 1.595 | 241,692 | 0.54 |
+| processes | 1,000,000 | 3,850,935 | 16.34 | 235,737 | - |
+| experiment (1 worker) | 16 | 1,119,489 | 4.59 | 244,072 | - |
+| experiment (2 workers) | 16 | 1,119,489 | 3.82 | 293,357 | - |
+| experiment (4 workers) | 16 | 1,119,489 | 3.40 | 329,285 | - |
+
+## Observations
+
+* Throughput is flat from 10k to 1M events: the heap is O(log n) and
+  finished processes and timeouts are freed by reference counting. An
+  earlier version kept a reference cycle per timeout, so the cyclic garbage
+  collector slowed long runs by about 30%. That was found with this suite and
+  fixed.
+* Memory stays small because statistics are incremental. Keeping raw
+  observations (`keep_values`), time series (`record_series`), entity
+  histories or an event log (`trace=True`) costs memory proportional to run
+  length.
+* Parallel speed-up is modest here (about 1.35x with 4 workers): each
+  replication takes about 0.3 s, while starting a worker process with the
+  `spawn` method (macOS, Windows) and importing NumPy/SciPy costs about a
+  second. Longer replications parallelise better. Results are identical to
+  serial runs either way (tested).
+* `tests/performance/test_performance.py` guards against regressions with
+  generous floors (about 10x below these numbers) and a linear-scaling check.
