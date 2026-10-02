@@ -6,6 +6,7 @@ from simulsi.analysis.sensitivity import (
     correlation_sensitivity,
     finite_difference,
     one_at_a_time,
+    sobol_indices,
 )
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "finite_difference",
     "format_table",
     "one_at_a_time",
+    "sobol_indices",
 ]

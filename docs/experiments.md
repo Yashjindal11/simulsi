@@ -198,8 +198,29 @@ print(correlation_sensitivity(mc, outputs).format())
   central by default.
 * **Correlation** - Pearson, Spearman rank, and standardised regression
   coefficients with the regression R^2 (if R^2 is low, a linear summary is
-  misleading). These screening methods miss interactions; variance-based
-  methods (Sobol) can be added behind the same `SensitivityResult` type.
+  misleading). These screening methods miss interactions.
+* **Sobol indices** - variance-based global sensitivity: the first-order index
+  is the share of output variance explained by a parameter alone, and the
+  total-effect index includes its interactions. Bootstrap CIs are included.
+  Cost: `n * (d + 2)` evaluations.
+
+```python
+import numpy as np
+
+from simulsi.analysis import sobol_indices
+
+
+def ishigami(x1, x2, x3):            # a standard test function with known indices
+    return np.sin(x1) + 7 * np.sin(x2) ** 2 + 0.1 * x3**4 * np.sin(x1)
+
+
+u = Uniform(-np.pi, np.pi)
+sobol = sobol_indices(ishigami, {"x1": u, "x2": u, "x3": u}, n=4096, vectorized=True, seed=1)
+print(sobol.format())   # x3 has ~0 first-order but ~0.24 total effect: it acts only via interaction
+```
+
+`sobol_indices` also accepts a simulation `Model` (every design row uses
+common random numbers); keep `n` modest, because each row is a simulation run.
 
 ## Cost models
 

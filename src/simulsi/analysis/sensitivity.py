@@ -12,15 +12,20 @@ Methods implemented (all simple and well understood):
   coefficients (SRC, with the regression R^2 so you can tell whether a
   linear summary is adequate).
 
-These are screening tools. Correlation-based measures miss interactions and
-strongly non-monotonic effects; variance-based methods (Sobol) would be a
-natural extension behind the same result types.
+* :func:`sobol_indices` - variance-based global sensitivity: first-order
+  and total-effect Sobol indices (Saltelli 2010 / Jansen estimators) with
+  bootstrap confidence intervals. Captures interactions and non-linear
+  effects at a cost of ``N * (d + 2)`` model evaluations.
+
+Correlation measures are cheap screening tools that miss interactions and
+non-monotonic effects; use Sobol indices when that matters.
 """
 
 from __future__ import annotations
 
+import inspect
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
@@ -29,8 +34,9 @@ from scipy import stats as _st
 
 from simulsi.analysis.report import format_table
 from simulsi.core.model import Model
-from simulsi.experiments.montecarlo import MonteCarloResult
-from simulsi.randomness.stream import derive_seed
+from simulsi.experiments.montecarlo import MonteCarloResult, sample_inputs
+from simulsi.randomness.distributions import DistributionLike
+from simulsi.randomness.stream import RandomStream, derive_seed
 from simulsi.statistics.core import paired_difference, t_half_width
 
 
@@ -251,4 +257,131 @@ def correlation_sensitivity(
                 [n for n, k in zip(names, keep, strict=True) if k], coef[1:], strict=True
             ):
                 rows.append(SensitivityRow(name, o, "src", float(c), detail=f"R2={r2:.3f}"))
+    return SensitivityResult(rows, info)
+
+
+def _evaluate_rows(
+    model: Callable[..., Any] | Model,
+    inputs: Mapping[str, np.ndarray[Any, Any]],
+    rows: int,
+    *,
+    fixed: Mapping[str, Any],
+    vectorized: bool,
+    seed: int,
+    crn_period: int,
+) -> dict[str, np.ndarray[Any, Any]]:
+    """Evaluate ``model`` on every row of ``inputs``. Row ``j`` uses seed index ``j % crn_period``."""
+    if vectorized:
+        if isinstance(model, Model):
+            raise ValueError("vectorized=True is not available for simulation models")
+        res = model(**fixed, **inputs)
+        arrays = res if isinstance(res, Mapping) else {"value": res}
+        return {
+            k: np.broadcast_to(np.asarray(v, dtype=float), (rows,)).copy()
+            for k, v in arrays.items()
+        }
+    wants_rng = not isinstance(model, Model) and "rng" in inspect.signature(model).parameters
+    out: dict[str, list[float]] = {}
+    for j in range(rows):
+        params = {
+            **fixed,
+            **{k: v[j].item() if hasattr(v[j], "item") else v[j] for k, v in inputs.items()},
+        }
+        rep_seed = derive_seed(seed, "replication", j % crn_period)
+        if isinstance(model, Model):
+            values: Any = model.simulate(params, seed=rep_seed).metrics
+        elif wants_rng:
+            values = model(**params, rng=RandomStream(rep_seed))
+        else:
+            values = model(**params)
+        row = dict(values) if isinstance(values, Mapping) else {"value": float(values)}
+        for k, v in row.items():
+            out.setdefault(k, [math.nan] * j).append(float(v))
+        for k in out:
+            if len(out[k]) < j + 1:
+                out[k].append(math.nan)
+    return {k: np.asarray(v, dtype=float) for k, v in out.items()}
+
+
+def sobol_indices(
+    model: Callable[..., Any] | Model,
+    parameters: Mapping[str, DistributionLike | Mapping[str, Any]],
+    n: int = 1024,
+    *,
+    outputs: Sequence[str] | None = None,
+    seed: int = 0,
+    fixed: Mapping[str, Any] | None = None,
+    vectorized: bool = False,
+    confidence: float = 0.95,
+    n_bootstrap: int = 500,
+) -> SensitivityResult:
+    """First-order and total-effect Sobol indices with bootstrap confidence intervals.
+
+    Uses the Saltelli (2010) design: two independent sample matrices ``A`` and
+    ``B`` of ``n`` rows plus, for each of the ``d`` parameters, ``A`` with that
+    column taken from ``B``. First-order indices use the Saltelli (2010)
+    estimator, total effects the Jansen (1999) estimator. Inputs are assumed
+    independent. For simulation models every matrix row ``j`` uses the same
+    replication seed (common random numbers), which keeps simulation noise
+    from swamping the index estimates; noise still adds some bias, so use
+    enough replication length or average several runs per row if outputs are
+    very noisy.
+
+    ``value`` is the index estimate (``method`` = ``sobol-first`` or
+    ``sobol-total``). Estimates can fall slightly outside [0, 1] with small
+    ``n``; the bootstrap interval shows how precise they are.
+    """
+    if n < 2:
+        raise ValueError("n must be >= 2")
+    names = list(parameters)
+    d = len(names)
+    if d == 0:
+        raise ValueError("need at least one uncertain parameter")
+    a = sample_inputs(parameters, n, derive_seed(seed, "sobol-A"))
+    b = sample_inputs(parameters, n, derive_seed(seed, "sobol-B"))
+    blocks = [a, b] + [{k: (b[k] if k == name else a[k]) for k in names} for name in names]
+    design = {k: np.concatenate([blk[k] for blk in blocks]) for k in names}
+    total = n * (d + 2)
+    y_all = _evaluate_rows(
+        model,
+        design,
+        total,
+        fixed=dict(fixed or {}),
+        vectorized=vectorized,
+        seed=seed,
+        crn_period=n,
+    )
+    rng = np.random.default_rng(derive_seed(seed, "sobol-bootstrap"))
+    boot_idx = rng.integers(0, n, size=(n_bootstrap, n))
+    alpha = (1 - confidence) / 2
+    rows: list[SensitivityRow] = []
+    info: dict[str, Any] = {"n": n, "evaluations": total, "variance": {}}
+    for o in outputs if outputs is not None else list(y_all):
+        if o not in y_all:
+            raise KeyError(f"model produced no output {o!r}")
+        y = y_all[o].reshape(d + 2, n)
+        f_a, f_b, f_ab = y[0], y[1], y[2:]  # (n,), (n,), (d, n)
+        var = np.var(np.concatenate([f_a, f_b]), ddof=1)
+        s1 = np.mean(f_b * (f_ab - f_a), axis=1) / var
+        st = 0.5 * np.mean((f_a - f_ab) ** 2, axis=1) / var
+        # bootstrap over rows: shapes (B, n) and (d, B, n)
+        fa_b, fb_b, fab_b = f_a[boot_idx], f_b[boot_idx], f_ab[:, boot_idx]
+        var_b = np.var(np.concatenate([fa_b, fb_b], axis=1), axis=1, ddof=1)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            b1 = np.mean(fb_b * (fab_b - fa_b), axis=2) / var_b
+            bt = 0.5 * np.mean((fa_b - fab_b) ** 2, axis=2) / var_b
+        info["variance"][o] = float(var)
+        for i, name in enumerate(names):
+            lo1, hi1 = np.nanquantile(b1[i], [alpha, 1 - alpha])
+            lot, hit = np.nanquantile(bt[i], [alpha, 1 - alpha])
+            rows.append(
+                SensitivityRow(
+                    name, o, "sobol-first", float(s1[i]), float(lo1), float(hi1), f"N={n}"
+                )
+            )
+            rows.append(
+                SensitivityRow(
+                    name, o, "sobol-total", float(st[i]), float(lot), float(hit), f"N={n}"
+                )
+            )
     return SensitivityResult(rows, info)

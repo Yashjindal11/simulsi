@@ -321,3 +321,46 @@ def test_series_recorded() -> None:
     ts = [t for t, _ in res.series["resource.desk.busy"]]
     assert ts == sorted(ts)
     assert np.all(np.asarray([v for _, v in res.series["resource.desk.busy"]]) <= 1)
+
+
+def test_sobol_indices_match_ishigami_analytic_values() -> None:
+    import numpy as np
+
+    from simulsi.analysis import sobol_indices
+
+    def ishigami(x1, x2, x3):  # type: ignore[no-untyped-def]
+        return np.sin(x1) + 7 * np.sin(x2) ** 2 + 0.1 * x3**4 * np.sin(x1)
+
+    u = Uniform(-np.pi, np.pi)
+    res = sobol_indices(
+        ishigami, {"x1": u, "x2": u, "x3": u}, n=8192, seed=1, vectorized=True, n_bootstrap=200
+    )
+    got = {(r.parameter, r.method): r for r in res.rows}
+    expected = {
+        ("x1", "sobol-first"): 0.3139,
+        ("x2", "sobol-first"): 0.4424,
+        ("x3", "sobol-first"): 0.0,
+        ("x1", "sobol-total"): 0.5576,
+        ("x2", "sobol-total"): 0.4424,
+        ("x3", "sobol-total"): 0.2437,
+    }
+    for key, value in expected.items():
+        assert got[key].value == pytest.approx(value, abs=0.04), key
+        assert got[key].ci_low <= got[key].value <= got[key].ci_high
+    assert res.info["evaluations"] == 8192 * 5
+    assert res.ranking(method="sobol-total")[0].parameter == "x1"
+
+
+def test_sobol_on_simulation_model_runs() -> None:
+    from simulsi.analysis import sobol_indices
+
+    res = sobol_indices(
+        SHORT_MMC,
+        {"arrival_rate": Uniform(0.3, 0.8), "service_rate": Uniform(0.95, 1.05)},
+        n=16,
+        outputs=["resource.server.utilization"],
+        seed=2,
+        fixed={"servers": 1},
+    )
+    first = {r.parameter: r.value for r in res.rows if r.method == "sobol-first"}
+    assert first["arrival_rate"] > first["service_rate"]
