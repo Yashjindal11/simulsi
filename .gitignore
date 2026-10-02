@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+coverage.xml
+htmlcov/
+
+# SimulSI outputs are per-user
+simulsi-results/
+*.checkpoint.jsonl
+
+# Node / web
+node_modules/
+web/frontend/dist/
+src/simulsi/web/static/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
