@@ -202,7 +202,12 @@ def resolve_model(
         if key not in BUILTIN_MODELS:
             raise ConfigError(f"unknown builtin model {key!r}; available: {sorted(BUILTIN_MODELS)}")
         return BUILTIN_MODELS[key]
-    target, _, attr = ref.partition(":") if not _looks_like_windows_drive(ref) else (ref, "", "")
+    if ".py:" in ref:
+        target, attr = ref.rsplit(":", 1)  # rsplit keeps Windows drive letters intact
+    elif ref.endswith(".py"):
+        target, attr = ref, ""
+    else:
+        target, _, attr = ref.partition(":")
     if target.endswith(".py"):
         base = Path(base_dir).resolve() if base_dir is not None else Path.cwd().resolve()
         path = (base / target).resolve()
@@ -220,10 +225,6 @@ def resolve_model(
     except ImportError as exc:
         raise ConfigError(f"cannot import module {target!r}: {exc}") from exc
     return _model_from_module(module, attr or None, ref)
-
-
-def _looks_like_windows_drive(ref: str) -> bool:
-    return len(ref) > 2 and ref[1] == ":" and ref[0].isalpha() and ref[2] in "\\/"
 
 
 def build_experiment(

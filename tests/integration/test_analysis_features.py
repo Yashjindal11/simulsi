@@ -134,7 +134,7 @@ def test_one_at_a_time_and_finite_difference() -> None:
     oat = one_at_a_time(
         SHORT_MMC, {"arrival_rate": [0.45, 0.9]}, out, base={"arrival_rate": 0.6}, replications=3
     )
-    vals = {r.detail.split(" ")[0]: r.value for r in oat.rows}
+    vals = {r.setting: r.value for r in oat.rows}
     assert vals["arrival_rate=0.45"] < 0 < vals["arrival_rate=0.9"]
     fd = finite_difference(
         SHORT_MMC,

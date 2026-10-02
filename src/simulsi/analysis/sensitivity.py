@@ -42,6 +42,7 @@ class SensitivityRow:
     value: float
     ci_low: float = math.nan
     ci_high: float = math.nan
+    setting: str = ""
     detail: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -69,7 +70,18 @@ class SensitivityResult:
 
     def format(self) -> str:
         return format_table(
-            [{k: v for k, v in r.to_dict().items() if k != "detail"} for r in self.ranking()]
+            [
+                {
+                    "parameter": r.parameter,
+                    "setting": r.setting,
+                    "output": r.output,
+                    "method": r.method,
+                    "value": r.value,
+                    "ci_low": r.ci_low,
+                    "ci_high": r.ci_high,
+                }
+                for r in self.ranking()
+            ]
         )
 
     def __repr__(self) -> str:
@@ -133,7 +145,8 @@ def one_at_a_time(
                         d.difference,
                         d.ci_low,
                         d.ci_high,
-                        f"{param}={v} (base {x0}); base={y0:.4g}; elasticity={elasticity:.3g}",
+                        f"{param}={v}",
+                        f"base {param}={x0}; base output={y0:.4g}; elasticity={elasticity:.3g}",
                     )
                 )
     return SensitivityResult(
