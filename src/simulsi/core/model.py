@@ -305,6 +305,10 @@ class Model:
         p = params if isinstance(params, Params) else self.resolve(params)
         sim = self.create(p, seed=seed, trace=trace, **sim_options)
         horizon = duration if duration is not None else self.duration
+        if self.warmup > 0 and horizon is not None and horizon <= self.warmup:
+            sim.warn(
+                f"run length {horizon:g} does not exceed the warm-up {self.warmup:g}; statistics were not reset"
+            )
         result = sim.run(until=horizon)
         result.details["parameters"] = p.to_jsonable()
         result.details["model"] = {"name": self.name, "version": self.version}

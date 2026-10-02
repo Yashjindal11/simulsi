@@ -145,6 +145,8 @@ def run_experiment(state: DashboardState, body: Mapping[str, Any]) -> str:
         raise ConfigError(f"replications x scenarios must be between 1 and {MAX_RUNS}")
     duration = body.get("duration")
     if duration is not None:
+        if not 0 < float(duration) <= 1e7:
+            raise ConfigError("duration must be in (0, 1e7]")
         model = model.with_options(duration=float(duration), warmup=min(model.warmup, float(duration) / 2))
     exp = Experiment(model, scenarios, replications=reps, seed=int(body.get("seed", 0)),
                      workers=1, on_error="record")
@@ -211,7 +213,10 @@ def make_handler(state: DashboardState, allowed_hosts: set[str]) -> type[BaseHTT
             if not self.headers.get("Content-Type", "").startswith("application/json"):
                 self._error(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "expected application/json")
                 return
-            length = int(self.headers.get("Content-Length") or 0)
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                length = -1
             if length <= 0 or length > MAX_BODY:
                 self._error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, f"body must be 1..{MAX_BODY} bytes")
                 return

@@ -184,6 +184,21 @@ def test_yaml_is_loaded_safely(tmp_path: Path) -> None:
         load_experiment(evil)
 
 
+def test_output_directory_must_stay_inside_config_dir(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir()
+    cfg = cfg_dir / "exp.yaml"
+    cfg.write_text(
+        "model: builtin:mmc\nsimulation: {duration: 100, warmup: 0}\nexperiment: {replications: 1}\n"
+        "output: {directory: ../escaped}\n"
+    )
+    code, _, err = run_cli(["experiment", str(cfg), "-q"], capsys)
+    assert code == 2 and "outside the configuration directory" in err
+    assert not (tmp_path / "escaped").exists()
+
+
 def test_model_path_traversal_blocked(tmp_path: Path) -> None:
     outside = tmp_path / "outside.py"
     outside.write_text("raise RuntimeError('must not be imported')\n")

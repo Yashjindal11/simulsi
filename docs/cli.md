@@ -95,7 +95,7 @@ cost:                            # optional cost model, applied per replication
     - {name: fees, kind: revenue, metric: resource.server.releases, rate: 1.5}
 
 output:
-  directory: results/service-desk   # relative to the config file
+  directory: results/service-desk   # relative to, and kept inside, the config's directory (use -o for elsewhere)
   formats: [json, csv, parquet]
 ```
 
@@ -111,4 +111,5 @@ Distribution-valued parameters use specs such as
 * Configuration is never executed. The `model:` reference is the only link to
   code, and file references must resolve inside the configuration's
   directory unless you pass `--allow-outside`.
-* Results are written only where you ask; nothing is uploaded.
+* Results are written only where you ask (`output.directory` may not escape
+  the configuration's directory); nothing is uploaded.

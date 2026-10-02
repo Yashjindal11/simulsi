@@ -23,6 +23,6 @@ SimulSI is a local library and command-line tool. Its security properties:
 | Deserialisation | Results are loaded from JSON only. No `pickle` is ever read from disk. (Pickle is used in memory to send models to local worker processes.) |
 | Shell / subprocesses | SimulSI never runs shell commands. Provenance capture calls `git rev-parse HEAD` / `git status` with a fixed argument list, no shell, and a timeout. |
 | Network & telemetry | None. Simulations, results and logs stay on your machine; nothing is uploaded, there is no telemetry and no API key is needed. |
-| Output paths | Output directories are created where you ask; the dashboard only serves files from the result directories you give it and rejects paths that escape them. |
+| Output paths | `output.directory` in a config must resolve inside the config's directory (choose any other location explicitly with `-o`). The dashboard serves static files only from its own package directory and loads results only from paths given on the command line. |
 | Web dashboard | `simulsi ui` binds to `127.0.0.1` by default and runs only built-in or explicitly loaded models. It has no authentication: do not expose it on a network. |
 | Resource exhaustion | Experiment sizes, worker counts and file sizes are bounded by validation; event logs can be capped with `max_log_records`. A model that schedules events forever is still your code's responsibility - always give runs a `duration`. |

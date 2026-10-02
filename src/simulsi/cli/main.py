@@ -188,8 +188,19 @@ def cmd_experiment(args: argparse.Namespace) -> int:
         )
     out = args.output or cfg.output.directory
     if out:
-        base = Path(args.config).parent
-        directory = Path(out) if args.output else (base / out)
+        if args.output:
+            directory = Path(args.output)
+        else:
+            from simulsi.serialization.io import safe_child
+
+            base = Path(args.config).resolve().parent
+            try:
+                directory = safe_child(base, out) if not args.allow_outside else base / out
+            except ValueError as exc:
+                raise ConfigError(
+                    f"output.directory {out!r} is outside the configuration directory; "
+                    "use -o to choose a location explicitly"
+                ) from exc
         result.save(directory, formats=cfg.output.formats)
         _print(f"\nsaved results to {directory}/")
     return EXIT_OK if not result.errors else EXIT_ERROR
