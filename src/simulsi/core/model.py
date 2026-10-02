@@ -288,6 +288,7 @@ class Model:
         options = {**self.sim_options, **sim_options}
         sim = Simulation(seed=seed, name=self.name, trace=trace, **options)
         self.build(sim, p)
+        sim._origin = (self, p, {"trace": trace, **options})
         if self.warmup > 0:
             sim.warmup(self.warmup)
         return sim

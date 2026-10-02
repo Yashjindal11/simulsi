@@ -8,6 +8,7 @@ from collections.abc import Callable, Generator, Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from heapq import heappush
+from pathlib import Path
 from typing import Any
 
 from simulsi.core.clock import Clock, DurationLike, TimeLike
@@ -122,6 +123,7 @@ class Simulation:
         self._finish_hooks: list[Callable[[Simulation], None]] = []
         self._wall_time = 0.0
         self._stats_start = self.clock.now
+        self._origin: tuple[Any, Any, dict[str, Any]] | None = None
 
     # -- time --------------------------------------------------------------
 
@@ -275,6 +277,35 @@ class Simulation:
     def stop(self) -> None:
         """Ask :meth:`run` to return after the current event."""
         self._stop_requested = True
+
+    def _replay(self, n_events: int) -> int:
+        """Execute exactly ``n_events`` events, ignoring stop requests (checkpoint restore)."""
+        pop = self.event_queue.pop
+        done = 0
+        while done < n_events:
+            event = pop()
+            if event is None:
+                break
+            self._execute(event)
+            done += 1
+        self._stop_requested = False
+        return done
+
+    def save_checkpoint(self, path: str | Path) -> Path:
+        """Save a checkpoint that :meth:`load_checkpoint` restores by deterministic replay.
+
+        See :mod:`simulsi.core.checkpoint` for what is stored and the requirements.
+        """
+        from simulsi.core.checkpoint import save_checkpoint
+
+        return save_checkpoint(self, path)
+
+    @classmethod
+    def load_checkpoint(cls, path: str | Path, *, model: Any = None) -> Simulation:
+        """Rebuild a simulation saved with :meth:`save_checkpoint`, in exactly the saved state."""
+        from simulsi.core.checkpoint import load_checkpoint
+
+        return load_checkpoint(path, model=model)
 
     def run(
         self,
