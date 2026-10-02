@@ -81,15 +81,17 @@ relative_precision=0.05)` or `simulsi analyze results --precision 0.05`.
 
 ## Can I pause and resume a simulation?
 
-You can call `run(until=...)` repeatedly. Experiments can be checkpointed and
-resumed. Serialising a running simulation to disk is not supported; see
-[Architecture: checkpointing](architecture.md#checkpointing).
+You can call `run(until=...)` repeatedly, and save a running simulation with
+`sim.save_checkpoint(path)` and restore it later with
+`Simulation.load_checkpoint(path)` (restore replays the run deterministically
+and verifies the result). Experiments can be checkpointed per replication.
+See [Architecture: checkpointing](architecture.md#checkpointing).
 
 ## Can a resource preempt a lower-priority user?
 
-Not automatically. Priority disciplines order the waiting line. To preempt,
-interrupt the user's process (`process.interrupt(...)`) and let it release
-and re-queue. The manufacturing example shows the pattern.
+Yes: `sim.resource(..., discipline="priority", preemptive=True)`. The evicted
+process receives an `Interrupt` with a `Preempted` cause and can re-queue its
+remaining work; see [Concepts: preemption](concepts.md#preemption).
 
 ## Does it work on Windows?
 

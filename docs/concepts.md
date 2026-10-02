@@ -156,12 +156,46 @@ print(m["resource.doctor.utilization"], m["resource.doctor.wait.mean"])
 * **Statistics** (prefix `resource.<name>.`): `utilization` (busy / capacity,
   time-weighted), `availability`, `mean_busy`, `mean_queue_length`,
   `max_queue_length`, `wait.mean/max/p95/total`, `requests`, `grants`,
-  `releases`, `reneges`, `failures`, `throughput`, `busy_time`, `capacity_time`.
+  `releases`, `reneges`, `failures`, `preemptions`, `throughput`, `busy_time`, `capacity_time`.
 * **Invariants** (property-tested): `0 <= in_use <= capacity`;
-  `requests = grants + waiting + reneged`; `grants = releases + in_use`.
+  `requests = grants + waiting + reneged`; `grants = releases + preemptions + in_use`.
 
-Preemption (a high-priority request evicting a user) is not implemented; model
-it with `interrupt()` if you need it.
+### Preemption
+
+`sim.resource(name, capacity, discipline="priority", preemptive=True)` lets
+a request that finds no free unit evict the least important user, but only if
+the request is strictly more important (lower value). The evicted process gets
+an `Interrupt` whose `cause` is a `Preempted(resource, by, usage_since)`. Its
+unit is already released (calling `release` on it is a no-op), so it usually
+re-requests the work that remains:
+
+```python
+from simulsi import Interrupt, Preempted, Simulation
+
+sim = Simulation(seed=1)
+or_room = sim.resource("theatre", 1, discipline="priority", preemptive=True)
+
+
+def operation(sim, name, priority, arrive, work):
+    yield arrive
+    while work > 0:
+        req = yield sim.request(or_room, priority=priority)
+        start = sim.now
+        try:
+            yield work
+            work = 0
+            sim.release(req)
+        except Interrupt as stop:
+            assert isinstance(stop.cause, Preempted)
+            work -= sim.now - start
+            print(f"t={sim.now}: {name} bumped, {work} left")
+    print(f"t={sim.now}: {name} done")
+
+
+sim.process(operation(sim, "elective", 5, 0, 6))
+sim.process(operation(sim, "emergency", 1, 2, 3))
+sim.run()
+```
 
 ## Queues
 

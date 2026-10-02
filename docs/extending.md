@@ -137,7 +137,8 @@ OR-Tools callback expect. See [experiments.md](experiments.md#optimisation-inter
 ## New analysis methods
 
 `SensitivityResult` holds `SensitivityRow(parameter, output, method, value,
-ci_low, ci_high, setting, detail)` rows; a new method (e.g. Sobol indices) only
+ci_low, ci_high, setting, detail)` rows; a new method (for example Morris
+elementary effects) only
 needs to produce rows to get ranking, formatting and tornado plots for free.
 Statistical functions in `simulsi.statistics` take plain arrays - add new ones
 there with tests against a reference implementation.

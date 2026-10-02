@@ -110,18 +110,35 @@ replications take longer than that. See [benchmarks](../benchmarks/README.md).
 
 ## Checkpointing
 
-SimulSI checkpoints **experiments**, not in-flight simulations:
-`Experiment.run(checkpoint="file.jsonl")` appends each completed replication
-and skips completed ones on restart, after checking that the experiment
-definition (model, version, seed, scenarios) matches.
+There are two levels:
 
-Snapshotting a *running* simulation is not supported. A simulation's state
-includes suspended Python generators, which cannot be serialised reliably.
-Robust checkpoint/restore would require either restricting how models are
-written or fragile serialisation, so it was left out. `sim.snapshot()` gives a
-JSON view of the state for inspection, and because runs are deterministic a
-replication can always be re-run from its seed. A long single run can be
-advanced in segments with repeated `run(until=...)` calls.
+* **Experiments** - `Experiment.run(checkpoint="file.jsonl")` appends each
+  completed replication and skips completed ones on restart, after checking
+  that the experiment definition (model, version, seed, scenarios) matches.
+* **Running simulations** - `sim.save_checkpoint(path)` /
+  `Simulation.load_checkpoint(path)`. A simulation's state includes
+  suspended Python generators, which cannot be serialised reliably, so the
+  checkpoint records how to rebuild the state instead: model reference,
+  resolved parameters, seed, options, number of events executed and clock.
+  Restoring rebuilds the model and deterministically replays exactly that
+  many events. It then verifies the pending-event count, the next event time
+  and a digest of all statistics, so a non-deterministic or modified model is
+  reported instead of silently diverging.
+
+```py
+sim = model.create(params, seed=7)
+sim.run(until=10_000)
+sim.save_checkpoint("day1.ckpt.json")
+...
+sim = Simulation.load_checkpoint("day1.ckpt.json")   # or load_checkpoint(path, model=model)
+sim.run(until=20_000)                                 # identical to an uninterrupted run
+```
+
+The costs are honest ones: restoring takes about as long as running to the
+checkpoint, the simulation must come from `Model.create`, and changes made
+from outside the event loop between runs are not recorded (schedule them as
+events instead). Built-in models, module-level models and models loaded from
+files are found automatically; otherwise pass `model=`.
 
 ## Performance
 
@@ -138,9 +155,9 @@ The engine is pure Python. Measured numbers are in
 
 ## Known limitations
 
-* No preemptive resources (use interrupts); no continuous/system-dynamics
-  integration; no conditional (state-based) events beyond signals and polling.
+* No continuous/system-dynamics integration; no conditional (state-based)
+  events beyond signals and polling.
 * Flow and state graphs are observed from a run, not derived statically.
-* Sensitivity analysis covers local and correlation/regression methods;
-  variance-based (Sobol) indices are not implemented yet.
-* Single-run checkpoint/restore is not supported (see above).
+* Sobol indices assume independent inputs; correlated inputs need other methods.
+* Checkpoint restore replays the run, so it costs about the time to reach the
+  checkpoint.

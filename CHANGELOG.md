@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-02
+
+### Added
+
+- Preemptive resources (`preemptive=True` with the priority discipline);
+  evicted processes receive `Interrupt(Preempted(...))`.
+- Sobol first-order and total-effect sensitivity indices
+  (`simulsi.analysis.sobol_indices`) with bootstrap CIs, validated against
+  the Ishigami function.
+- Checkpoints of running simulations (`sim.save_checkpoint`,
+  `Simulation.load_checkpoint`) restored by verified deterministic replay.
+- PyPI publishing workflow (trusted publishing).
+
+### Fixed
+
+- Hold times in event-log records were wrong for units granted at t = 0.
+
 ## [0.1.0] - 2026-10-02
 
 First public release.
