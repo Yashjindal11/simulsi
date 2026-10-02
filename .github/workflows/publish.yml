@@ -1,0 +1,52 @@
+name: Publish to PyPI
+
+# Uses PyPI trusted publishing (no API token). One-time setup on pypi.org:
+# add a pending publisher for project "simulsi", owner Yashjindal11,
+# repository "simulsi", workflow "publish.yml", environment "pypi".
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v0.2.0)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Build dashboard into the package
+        run: npm --prefix web/frontend ci && npm --prefix web/frontend run build
+      - run: pip install build twine
+      - run: python -m build
+      - run: python -m twine check dist/*
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pypi-dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/simulsi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: pypi-dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

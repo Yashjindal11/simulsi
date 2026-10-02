@@ -6,16 +6,17 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Build dashboard into the package
@@ -35,3 +36,8 @@ jobs:
         run: |
           notes=$(python scripts/release_notes.py "${GITHUB_REF_NAME#v}")
           gh release create "${GITHUB_REF_NAME}" dist/* --title "SimulSI ${GITHUB_REF_NAME}" --notes "$notes"
+      - name: Publish to PyPI (when enabled with the PYPI_PUBLISH repository variable)
+        if: ${{ vars.PYPI_PUBLISH == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run publish.yml -f tag="${GITHUB_REF_NAME}"
