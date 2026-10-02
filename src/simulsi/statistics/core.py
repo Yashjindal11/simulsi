@@ -143,7 +143,8 @@ def proportion_ci(successes: int, n: int, confidence: float = 0.95) -> tuple[flo
     denom = 1 + z * z / n
     centre = (p + z * z / (2 * n)) / denom
     half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
-    return (max(0.0, centre - half), min(1.0, centre + half))
+    # Clamp so floating-point error never excludes the point estimate (e.g. at k = n).
+    return (max(0.0, min(p, centre - half)), min(1.0, max(p, centre + half)))
 
 
 @dataclass(frozen=True)
