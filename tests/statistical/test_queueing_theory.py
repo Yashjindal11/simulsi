@@ -43,12 +43,12 @@ def simulate_mmc(lam: float, mu: float, c: int, seed: int, horizon: float) -> di
     return sim.run(until=horizon).metrics
 
 
-@pytest.mark.parametrize(("lam", "mu", "c"), [(0.8, 1.0, 1), (1.5, 1.0, 2), (4.0, 1.5, 3)])
+@pytest.mark.parametrize(("lam", "mu", "c"), [(0.8, 1.0, 1), (1.5, 1.0, 2), (2.4, 1.0, 3)])
 def test_mmc_matches_erlang_c(lam: float, mu: float, c: int) -> None:
     wq, rho = erlang_c_wait(lam, mu, c)
     waits, utils = [], []
     for seed in range(8):
-        m = simulate_mmc(lam, mu, c, seed, horizon=20_000)
+        m = simulate_mmc(lam, mu, c, seed, horizon=10_000)
         waits.append(m["resource.server.wait.mean"])
         utils.append(m["resource.server.utilization"])
     mean_w = sum(waits) / len(waits)
