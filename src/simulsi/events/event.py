@@ -30,6 +30,8 @@ class Priority(enum.IntEnum):
 
 EventCallback = Callable[["Simulation", "Event"], Any]
 
+_EMPTY: dict[str, Any] = {}
+
 
 class Event:
     """Something that happens at a point in simulation time.
@@ -104,9 +106,17 @@ class _CallEvent(Event):
     __slots__ = ("fn",)
 
     def __init__(self, fn: Callable[[], Any], event_type: str, priority: int) -> None:
-        super().__init__(event_type, None, None, priority)
+        # Hot path: assign slots directly instead of calling Event.__init__.
         self.fn = fn
+        self.event_type = event_type
+        self.priority = priority
         self.internal = True
+        self.event_id = -1
+        self.status = EventStatus.CREATED
+        self.callback = None
+        self.payload = _EMPTY
+        self.timestamp = math.nan
+        self._seq = -1
 
     def execute(self, sim: Simulation) -> None:
         self.fn()

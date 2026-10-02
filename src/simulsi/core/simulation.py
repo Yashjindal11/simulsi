@@ -7,6 +7,7 @@ import time as _wall
 from collections.abc import Callable, Generator, Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from heapq import heappush
 from typing import Any
 
 from simulsi.core.clock import Clock, DurationLike, TimeLike
@@ -28,6 +29,8 @@ from simulsi.queues.discipline import Discipline
 from simulsi.queues.queue import Queue
 from simulsi.randomness.stream import RandomStream
 from simulsi.resources.resource import Request, Resource
+
+_SCHEDULED = EventStatus.SCHEDULED
 
 
 @dataclass
@@ -204,7 +207,15 @@ class Simulation:
         priority: int = Priority.NORMAL,
     ) -> Event:
         ev = _CallEvent(fn, label, priority)
-        self.event_queue.push(ev, self.clock.now + delay)
+        q = self.event_queue
+        seq = q._seq
+        q._seq = seq + 1
+        q._live += 1
+        t = self.clock._now + delay
+        ev._seq = seq
+        ev.timestamp = t
+        ev.status = _SCHEDULED
+        heappush(q._heap, (t, priority, seq, ev))
         return ev
 
     def reschedule(

@@ -198,7 +198,7 @@ class Resource:
                     metadata={"priority": priority},
                 )
             )
-        if self.available > 0 and not self._waiting:
+        if not self._waiting and len(self.users) < self.capacity - self.down:
             self._grant(req)
             return req
         self._waiting.push(req, priority, req)
@@ -285,9 +285,10 @@ class Resource:
         self._dispatch()
 
     def _dispatch(self) -> None:
-        while self._waiting and self.available > 0:
-            req = self._waiting.pop()
-            self.queue_length.record(len(self._waiting))
+        waiting = self._waiting
+        while waiting and len(self.users) < self.capacity - self.down:
+            req = waiting.pop()
+            self.queue_length.record(len(waiting))
             self._grant(req)
 
     # -- capacity and downtime ---------------------------------------------------

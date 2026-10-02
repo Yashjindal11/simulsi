@@ -95,7 +95,7 @@ class Waitable:
 
     def add_callback(self, cb: Callback) -> None:
         """Call ``cb(self)`` once triggered (immediately-scheduled if already triggered)."""
-        if self.triggered:
+        if self._value is not _PENDING or self._exc is not None:
             self.sim._schedule_internal(lambda: cb(self), "_dispatch")
         else:
             self._callbacks.append(cb)
@@ -261,29 +261,29 @@ class Process(Waitable):
                 except BaseException as err:
                     self._terminate(None, err)
                     return
-                target = self._coerce(yielded)
+                if type(yielded) is Timeout or isinstance(yielded, Waitable):
+                    target = yielded if yielded.sim is self.sim else None
+                else:
+                    target = self._coerce(yielded)
                 if target is None:
                     exc = TypeError(
                         f"process {self.name!r} yielded {yielded!r}; yield a number, "
-                        "timedelta, or a Waitable (timeout, request, signal, process, ...)"
+                        "timedelta, or a Waitable (timeout, request, signal, process, ...) "
+                        "from this simulation"
                     )
                     value = None
                     continue
-                if target.triggered:
+                if target._value is not _PENDING or target._exc is not None:
                     # Already done (e.g. a request granted on the spot): continue at once.
                     exc, value = target._exc, (None if target._exc else target._value)
                     continue
                 self._target = target
-                target.add_callback(self._resume)
+                target._callbacks.append(self._resume)
                 return
         finally:
             sim._active_process = previous
 
     def _coerce(self, yielded: Any) -> Waitable | None:
-        if isinstance(yielded, Waitable):
-            if yielded.sim is not self.sim:
-                return None
-            return yielded
         if isinstance(yielded, int | float | timedelta) and not isinstance(yielded, bool):
             return Timeout(self.sim, self.sim.clock.duration(yielded))
         return None
