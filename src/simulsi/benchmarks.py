@@ -97,7 +97,7 @@ def run_engine_benchmark(name: str, size: int, *, memory: bool = False) -> Bench
 
 
 def run_experiment_benchmark(
-    replications: int, workers: int, duration: float = 2_000.0
+    replications: int, workers: int, duration: float = 20_000.0
 ) -> BenchmarkResult:
     m = mmc.with_options(duration=duration, warmup=0.0)
     exp = Experiment(m, replications=replications, seed=0, workers=workers)
