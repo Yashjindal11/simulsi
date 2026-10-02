@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-02
+
+First public release.
+
 ### Added
 
 - Discrete-event engine: float clock with `timedelta`/`datetime` conversion,
@@ -37,6 +41,21 @@ All notable changes to this project are documented here. The format follows
 - Optional matplotlib/Plotly visualisation.
 - YAML experiment configuration (strict schema, safe loading, path checks)
   and the `simulsi` CLI: `init`, `validate`, `run`, `experiment`, `analyze`,
-  `benchmark`, `visualize`.
+  `benchmark`, `visualize`, `ui`.
+- Optional React + TypeScript dashboard (`simulsi ui`): load experiments,
+  view parameters and provenance, run models, compare scenarios, inspect
+  distributions and convergence, trace single runs (timeline, queues,
+  utilization) and export JSON/CSV. Served locally on 127.0.0.1.
 - Six domain examples: bank, hospital, warehouse, manufacturing,
-  transportation, aviation.
+  transportation, aviation - plus a minimal M/M/c example.
+- Benchmark suite (`benchmarks/run_benchmarks.py`, `simulsi benchmark`) with
+  measured results, and performance regression tests.
+- Documentation: user guide, architecture, research workflow, extension guide,
+  FAQ; documentation code blocks are executed by the test suite.
+
+### Known limitations
+
+- No preemptive resources, continuous-time dynamics or single-run
+  checkpoint/restore (experiments are checkpointed per replication).
+- Sensitivity analysis is local / correlation-based; no Sobol indices yet.
+- Not yet published on PyPI; install from source.
