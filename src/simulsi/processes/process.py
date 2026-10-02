@@ -119,18 +119,23 @@ class Timeout(Waitable):
         if delay < 0:
             raise ValueError(f"timeout delay must be >= 0, got {delay}")
         self.delay = delay
-        self._event: Event = sim._schedule_internal(
+        self._event: Event | None = sim._schedule_internal(
             lambda: self._fire(value), "_timeout", delay=delay
         )
 
     def _fire(self, value: Any) -> None:
         # Runs as a top-level event, so waiters can be resumed synchronously.
+        # Dropping the event reference breaks the timeout <-> event cycle, so
+        # finished timeouts are freed by reference counting instead of the GC.
+        self._event = None
         self._value = value
         self._run_callbacks()
 
     def cancel(self) -> None:
         """Withdraw the timeout if nobody is waiting on it any more."""
-        self.sim.cancel(self._event)
+        if self._event is not None:
+            self.sim.cancel(self._event)
+            self._event = None
 
 
 class Signal(Waitable):
