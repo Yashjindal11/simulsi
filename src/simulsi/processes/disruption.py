@@ -80,6 +80,8 @@ class FailureProcess:
         self.process: Process | None = None
         if resource.sim is not sim:
             sim.add_resource(resource)
+        # Create the counter up front so the metric exists even if no failure occurs.
+        sim.metrics.counter(f"failure.{self.name}.count")
         if start:
             self.start()
 
