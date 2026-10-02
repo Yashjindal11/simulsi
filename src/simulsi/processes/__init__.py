@@ -1,3 +1,9 @@
+from simulsi.processes.disruption import (
+    FailureProcess,
+    RecoveryProcess,
+    ScheduledDisruption,
+    capacity_reduction,
+)
 from simulsi.processes.process import (
     AllOf,
     AnyOf,
@@ -13,9 +19,13 @@ __all__ = [
     "AllOf",
     "AnyOf",
     "Condition",
+    "FailureProcess",
     "Process",
     "ProcessGenerator",
+    "RecoveryProcess",
+    "ScheduledDisruption",
     "Signal",
     "Timeout",
     "Waitable",
+    "capacity_reduction",
 ]
