@@ -162,6 +162,22 @@ class EventQueue:
                 return ev
         return None
 
+    def pop_due(self, horizon: float) -> Event | None:
+        """Pop the next live event if its time is ``<= horizon``, else return ``None``."""
+        heap = self._heap
+        while heap:
+            entry = heap[0]
+            ev = entry[3]
+            if ev.status is not EventStatus.SCHEDULED or ev._seq != entry[2]:
+                heapq.heappop(heap)
+                continue
+            if entry[0] > horizon:
+                return None
+            heapq.heappop(heap)
+            self._live -= 1
+            return ev
+        return None
+
     def peek_time(self) -> float:
         """Time of the next live event, or ``inf`` when empty."""
         self._drop_stale()

@@ -44,7 +44,7 @@ def test_cancel_and_reschedule() -> None:
     assert not sim.cancel(a)
     assert a.status is EventStatus.CANCELLED
     sim.reschedule(b, time=7)
-    assert len(sim.queue) == 1
+    assert len(sim.event_queue) == 1
     sim.run()
     assert seen == [("b", 7.0)]
     assert b.status is EventStatus.EXECUTED
@@ -57,7 +57,7 @@ def test_reschedule_cancelled_event_revives_it() -> None:
     ev = sim.schedule(time=1, event_type="x")
     sim.cancel(ev)
     sim.reschedule(ev, delay=4)
-    assert len(sim.queue) == 1
+    assert len(sim.event_queue) == 1
     sim.run()
     assert ev.status is EventStatus.EXECUTED and ev.timestamp == 4
 

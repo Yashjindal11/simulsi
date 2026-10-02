@@ -14,9 +14,15 @@ from simulsi.errors import (
     SimulsiError,
 )
 from simulsi.events import Event, EventStatus, Priority
+from simulsi.metrics import Metrics
+from simulsi.processes import AllOf, AnyOf, Process, Signal, Timeout, Waitable
+from simulsi.queues import Queue
 from simulsi.randomness import RandomStream
+from simulsi.resources import Request, Resource
 
 __all__ = [
+    "AllOf",
+    "AnyOf",
     "CapacityError",
     "Clock",
     "ConfigError",
@@ -27,13 +33,21 @@ __all__ = [
     "EventStatus",
     "Interrupt",
     "LogRecord",
+    "Metrics",
     "ModelValidationError",
     "Priority",
+    "Process",
+    "Queue",
     "RandomStream",
+    "Request",
+    "Resource",
     "ResourceUsageError",
     "SchedulingError",
+    "Signal",
     "Simulation",
     "SimulationResult",
     "SimulsiError",
+    "Timeout",
+    "Waitable",
     "__version__",
 ]
