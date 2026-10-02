@@ -9,6 +9,7 @@ and optimisers all operate on.
 
 from __future__ import annotations
 
+import contextlib
 import math
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
@@ -353,7 +354,7 @@ class Model:
         # `@model` replaces the module-level function with this Model, so pickle
         # by reference to that global when possible (needed for worker processes).
         module = getattr(self.build, "__module__", None)
-        qualname = getattr(self.build, "__qualname__", "")
+        qualname = getattr(self.build, "__qualname__", "").removesuffix(".build")
         if module and qualname and "<" not in qualname:
             try:
                 if _import_object(module, qualname) is self:
@@ -361,6 +362,28 @@ class Model:
             except (ImportError, AttributeError):
                 pass
         return (_new_model, (), self.__dict__)
+
+    def with_options(
+        self,
+        *,
+        duration: float | None = None,
+        warmup: float | None = None,
+        name: str | None = None,
+        sim_options: Mapping[str, Any] | None = None,
+    ) -> Model:
+        """A copy with a different run length, warm-up, name or simulation options."""
+        return Model(
+            self.build,
+            name=name or self.name,
+            duration=duration if duration is not None else self.duration,
+            warmup=warmup if warmup is not None else self.warmup,
+            parameters=list(self.parameters.values()),
+            version=self.version,
+            description=self.description,
+            outputs=self.outputs,
+            sim_options={**self.sim_options, **(sim_options or {})},
+            strict=self.strict,
+        )
 
     def __repr__(self) -> str:
         return f"Model({self.name!r}, duration={self.duration}, parameters={list(self.parameters)})"
@@ -393,9 +416,21 @@ def model(build: BuildFn | None = None, /, **kwargs: Any) -> Model | Callable[[B
     0.0
     """
     if build is not None:
-        return Model(build, **kwargs)
+        return _decorate(build, kwargs)
 
     def wrap(fn: BuildFn) -> Model:
-        return Model(fn, **kwargs)
+        return _decorate(fn, kwargs)
 
     return wrap
+
+
+def _decorate(fn: BuildFn, kwargs: Mapping[str, Any]) -> Model:
+    m = Model(fn, **kwargs)
+    # The decorated name now refers to the Model; point the function's qualified
+    # name at `<name>.build` so pickle can still find the function (and copies
+    # made with `with_options` remain usable in worker processes).
+    qn = getattr(fn, "__qualname__", None)
+    if isinstance(qn, str) and "<" not in qn:
+        with contextlib.suppress(AttributeError, TypeError):
+            fn.__qualname__ = f"{qn}.build"
+    return m

@@ -284,9 +284,15 @@ class Experiment:
             for a in args:
                 handle(_run_task(a))
         else:
+            from simulsi.config.schema import loaded_model_files, preload_model_files
+
             _check_picklable(self.model)
             chunk = max(1, len(args) // (self.workers * 4))
-            with cf.ProcessPoolExecutor(max_workers=self.workers) as pool:
+            with cf.ProcessPoolExecutor(
+                max_workers=self.workers,
+                initializer=preload_model_files,
+                initargs=(loaded_model_files(),),
+            ) as pool:
                 for rec in pool.map(_run_task, args, chunksize=chunk):
                     handle(rec)
         meta.runtime = time.perf_counter() - t0
