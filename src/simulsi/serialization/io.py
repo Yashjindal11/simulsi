@@ -11,6 +11,7 @@ Loading never uses ``pickle`` or ``eval``: only JSON is read back.
 from __future__ import annotations
 
 import csv
+import io
 import json
 import math
 from collections.abc import Iterable, Mapping, Sequence
@@ -63,19 +64,27 @@ def read_json(path: str | Path) -> Any:
         return json.load(fh)
 
 
-def write_csv(rows: Sequence[Mapping[str, Any]], path: str | Path) -> Path:
-    """Write dict rows; the header is the union of keys in first-seen order."""
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
+def csv_text(rows: Sequence[Mapping[str, Any]]) -> str:
+    """Dict rows as CSV text; the header is the union of keys in first-seen order."""
     columns: dict[str, None] = {}
     for row in rows:
         for k in row:
             columns.setdefault(k, None)
-    with p.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=list(columns), extrasaction="ignore")
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({k: _csv_cell(v) for k, v in row.items()})
+    buf = io.StringIO()
+    writer = csv.DictWriter(
+        buf, fieldnames=list(columns), extrasaction="ignore", lineterminator="\n"
+    )
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({k: _csv_cell(v) for k, v in row.items()})
+    return buf.getvalue()
+
+
+def write_csv(rows: Sequence[Mapping[str, Any]], path: str | Path) -> Path:
+    """Write dict rows; the header is the union of keys in first-seen order."""
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(csv_text(rows), encoding="utf-8")
     return p
 
 

@@ -342,6 +342,20 @@ def cmd_visualize(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_ui(args: argparse.Namespace) -> int:
+    from simulsi.config.schema import resolve_model
+    from simulsi.web.server import serve
+
+    models = {ref: resolve_model(ref) for ref in args.model or []}
+    return serve(
+        host=args.host,
+        port=args.port,
+        results=[Path(p) for p in args.results],
+        models=models,
+        open_browser=not args.no_browser,
+    )
+
+
 # -- parser ----------------------------------------------------------------------------
 
 
@@ -427,6 +441,16 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--param", "-p", action="append", metavar="KEY=VALUE")
     s.add_argument("--seed", type=int, default=0)
     s.set_defaults(func=cmd_visualize)
+
+    s = sub.add_parser("ui", help="start the local web dashboard (127.0.0.1 only by default)")
+    s.add_argument("results", nargs="*", help="saved experiment results to preload")
+    s.add_argument(
+        "--model", action="append", metavar="REF", help="extra model the dashboard may run"
+    )
+    s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--port", type=int, default=8642)
+    s.add_argument("--no-browser", action="store_true")
+    s.set_defaults(func=cmd_ui)
     return p
 
 
