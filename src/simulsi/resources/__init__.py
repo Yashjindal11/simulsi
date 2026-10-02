@@ -1,3 +1,3 @@
-from simulsi.resources.resource import Request, Resource
+from simulsi.resources.resource import Preempted, Request, Resource
 
-__all__ = ["Request", "Resource"]
+__all__ = ["Preempted", "Request", "Resource"]

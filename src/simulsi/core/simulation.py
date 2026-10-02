@@ -456,9 +456,16 @@ class Simulation:
         return resource
 
     def resource(
-        self, name: str, capacity: int = 1, *, discipline: Discipline = "fifo"
+        self,
+        name: str,
+        capacity: int = 1,
+        *,
+        discipline: Discipline = "fifo",
+        preemptive: bool = False,
     ) -> Resource:
-        return self.add_resource(Resource(name, capacity, discipline=discipline))
+        return self.add_resource(
+            Resource(name, capacity, discipline=discipline, preemptive=preemptive)
+        )
 
     def add_queue(self, queue: Queue[Any]) -> Queue[Any]:
         existing = self.queues.get(queue.name)

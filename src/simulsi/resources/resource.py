@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from simulsi.core.trace import LogRecord
@@ -14,6 +15,15 @@ from simulsi.queues.discipline import Discipline, OrderedBuffer
 if TYPE_CHECKING:
     from simulsi.core.simulation import Simulation
     from simulsi.entities.entity import Entity
+
+
+@dataclass(frozen=True)
+class Preempted:
+    """``Interrupt.cause`` received by a process whose unit was taken by a higher-priority request."""
+
+    resource: str
+    by: Request
+    usage_since: float
 
 
 class Request(Waitable):
@@ -30,6 +40,7 @@ class Request(Waitable):
         "entity",
         "granted_at",
         "owner",
+        "preempted",
         "priority",
         "released_at",
         "reneged",
@@ -55,6 +66,7 @@ class Request(Waitable):
         self.granted_at: float | None = None
         self.released_at: float | None = None
         self.reneged = False
+        self.preempted = False
         self._patience_event: Any = None
 
     @property
@@ -74,6 +86,8 @@ class Request(Waitable):
 
     def __repr__(self) -> str:
         state = "granted" if self.granted else ("reneged" if self.reneged else "waiting")
+        if self.preempted:
+            state = "preempted"
         return f"<Request {self.resource.name!r} {state}>"
 
 
@@ -88,8 +102,12 @@ class Resource:
     Capacity can change during a run (:meth:`set_capacity`) and units can be
     taken down and repaired (:meth:`fail` / :meth:`repair`). Units already in
     use when capacity drops finish normally unless ``interrupt=True``.
-    Preemption of in-service users by higher-priority requests is not
-    implemented.
+
+    With ``preemptive=True`` (requires the ``"priority"`` discipline) a request
+    that finds no free unit evicts the lowest-priority user if it is strictly
+    more important (lower value). The evicted process receives
+    :class:`~simulsi.errors.Interrupt` with a :class:`Preempted` cause; its unit
+    is already released, so it typically re-requests the remaining work.
     """
 
     def __init__(
@@ -98,12 +116,16 @@ class Resource:
         capacity: int = 1,
         *,
         discipline: Discipline = "fifo",
+        preemptive: bool = False,
         sim: Simulation | None = None,
     ) -> None:
         self.name = name
         self._check_capacity(capacity)
+        if preemptive and discipline != "priority":
+            raise ValueError("preemptive resources need discipline='priority'")
         self.capacity = int(capacity)
         self.discipline = discipline
+        self.preemptive = preemptive
         self._waiting: OrderedBuffer[Request] = OrderedBuffer(discipline)
         self.users: list[Request] = []
         self.down = 0
@@ -143,6 +165,7 @@ class Resource:
         self.releases = Counter(f"{self.name}.releases", clock)
         self.reneges = Counter(f"{self.name}.reneges", clock)
         self.failures = Counter(f"{self.name}.failures", clock)
+        self.preemptions = Counter(f"{self.name}.preemptions", clock)
 
     def _require_sim(self) -> Simulation:
         if self.sim is None:
@@ -209,7 +232,43 @@ class Resource:
             req._patience_event = sim._schedule_internal(
                 lambda: self._withdraw(req, reneged=True), "_renege", delay=patience
             )
+        if self.preemptive and self.users:
+            victim = max(self.users, key=lambda r: (r.priority, r.granted_at or 0.0))
+            if victim.priority > priority:
+                self._preempt(victim, req)
+                self._dispatch()
         return req
+
+    def _preempt(self, victim: Request, by: Request) -> None:
+        sim = self._require_sim()
+        self.users.remove(victim)
+        victim.released_at = sim.now
+        victim.preempted = True
+        owner = victim.owner
+        if owner is not None and victim in owner.held:
+            owner.held.remove(victim)
+        self.busy.record(len(self.users))
+        self.preemptions.increment()
+        if sim.log is not None:
+            sim.log.append(
+                LogRecord(
+                    sim.now,
+                    "resource.preempt",
+                    entity=_eid(victim.entity),
+                    resource=self.name,
+                    metadata={
+                        "by": _eid(by.entity),
+                        "held": sim.now
+                        - (sim.now if victim.granted_at is None else victim.granted_at),
+                    },
+                )
+            )
+        if owner is not None and owner.is_alive and owner is not sim._active_process:
+            owner.interrupt(
+                Preempted(
+                    self.name, by, sim.now if victim.granted_at is None else victim.granted_at
+                )
+            )
 
     def _grant(self, req: Request) -> None:
         sim = self._require_sim()
@@ -261,6 +320,8 @@ class Resource:
     def release(self, req: Request) -> None:
         if req.resource is not self:
             raise ResourceUsageError(f"{req!r} was not issued by resource {self.name!r}")
+        if req.preempted:
+            return  # the unit was already taken away; releasing is a harmless no-op
         if req.released_at is not None:
             raise ResourceUsageError(f"{req!r} was already released")
         if not req.granted:
@@ -279,7 +340,9 @@ class Resource:
                     "resource.release",
                     entity=_eid(req.entity),
                     resource=self.name,
-                    metadata={"held": sim.now - (req.granted_at or sim.now)},
+                    metadata={
+                        "held": sim.now - (sim.now if req.granted_at is None else req.granted_at)
+                    },
                 )
             )
         self._dispatch()
@@ -358,7 +421,14 @@ class Resource:
         for c in (self.busy, self.queue_length, self.capacity_level, self.effective_level):
             c.reset()
         self.wait_times.reset()
-        for k in (self.requests, self.grants, self.releases, self.reneges, self.failures):
+        for k in (
+            self.requests,
+            self.grants,
+            self.releases,
+            self.reneges,
+            self.failures,
+            self.preemptions,
+        ):
             k.reset()
 
     @property
@@ -392,6 +462,7 @@ class Resource:
             "releases": self.releases.value,
             "reneges": self.reneges.value,
             "failures": self.failures.value,
+            "preemptions": self.preemptions.value,
             "throughput": self.releases.rate,
         }
 
@@ -413,6 +484,7 @@ class Resource:
                 "releases",
                 "reneges",
                 "failures",
+                "preemptions",
                 "throughput",
             )
         }

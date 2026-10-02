@@ -268,3 +268,49 @@ def test_request_object_release() -> None:
     sim.process(job(sim))
     sim.run()
     assert r.sim is sim and r.in_use == 0
+
+
+def test_preemptive_resource_evicts_lower_priority_user() -> None:
+    from simulsi.resources import Preempted
+
+    sim = Simulation(seed=1)
+    machine = sim.resource("machine", 1, discipline="priority", preemptive=True)
+    log: list[Any] = []
+
+    def job(sim: Simulation, name: str, prio: int, arrive: float, work: float) -> Any:
+        yield arrive
+        remaining = work
+        while remaining > 0:
+            req = yield sim.request(machine, priority=prio)
+            start = sim.now
+            try:
+                yield remaining
+                remaining = 0
+                sim.release(req)
+            except Interrupt as i:
+                assert isinstance(i.cause, Preempted) and i.cause.usage_since == start
+                remaining -= sim.now - start
+                sim.release(req)  # no-op for a preempted request
+                log.append((name, "preempted", sim.now, remaining))
+        log.append((name, "done", sim.now))
+
+    sim.process(job(sim, "routine", 5, 0, 10))
+    sim.process(job(sim, "urgent", 1, 3, 4))
+    sim.process(job(sim, "same", 5, 4, 1))  # equal priority never preempts
+    m = sim.run().metrics
+    assert log == [
+        ("routine", "preempted", 3.0, 7.0),
+        ("urgent", "done", 7.0),
+        ("routine", "done", 14.0),
+        ("same", "done", 15.0),
+    ]
+    assert m["resource.machine.preemptions"] == 1
+    assert m["resource.machine.utilization"] == pytest.approx(1.0)
+    assert (
+        machine.grants.value == machine.releases.value + machine.preemptions.value + machine.in_use
+    )
+
+
+def test_preemptive_requires_priority_discipline() -> None:
+    with pytest.raises(ValueError):
+        Resource("x", 1, preemptive=True)
