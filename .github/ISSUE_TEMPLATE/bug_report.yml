@@ -1,0 +1,38 @@
+name: Bug report
+description: Something in SimulSI does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For security vulnerabilities, follow SECURITY.md instead.
+        Please remove confidential data from models and results before pasting.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the command or code you ran and the output you saw.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: Ideally a small model with a fixed seed.
+      render: python
+  - type: input
+    id: version
+    attributes:
+      label: SimulSI version (`simulsi --version`)
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Python version and OS

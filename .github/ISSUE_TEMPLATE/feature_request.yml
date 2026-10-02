@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest a capability, statistical method, example or integration
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the modelling or analysis task, not just the API you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Papers, textbooks or other tools that implement the method, if relevant.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I would like to work on this
