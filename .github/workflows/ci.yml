@@ -102,7 +102,7 @@ jobs:
           /tmp/clean/bin/simulsi init /tmp/proj
           /tmp/clean/bin/simulsi validate /tmp/proj/experiment.yaml
           /tmp/clean/bin/python -c "import simulsi.web.server as s; assert (s.STATIC_DIR / 'index.html').is_file()"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
