@@ -61,14 +61,35 @@ jobs:
       - name: Examples run
         run: python scripts/run_examples.py
 
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/frontend/package-lock.json
+      - run: npm ci
+      - name: Type check and build dashboard
+        run: npm run build
+
   build:
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint, test, web]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build dashboard into the package
+        run: npm --prefix web/frontend ci && npm --prefix web/frontend run build
       - run: pip install build
       - run: python -m build
       - name: Install wheel in a clean venv and smoke test
@@ -80,6 +101,7 @@ jobs:
           /tmp/clean/bin/simulsi run builtin:mmc --duration 500 --seed 1
           /tmp/clean/bin/simulsi init /tmp/proj
           /tmp/clean/bin/simulsi validate /tmp/proj/experiment.yaml
+          /tmp/clean/bin/python -c "import simulsi.web.server as s; assert (s.STATIC_DIR / 'index.html').is_file()"
       - uses: actions/upload-artifact@v4
         with:
           name: dist

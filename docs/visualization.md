@@ -98,7 +98,8 @@ simulsi ui results/my-study results/other-study   # preload saved experiments
 The dashboard lets you:
 
 1. load saved experiments (from the command line or by dropping an
-   `experiment.json` onto the page - parsed in the browser, never uploaded);
+   `experiment.json` onto the page - it is read in the browser and sent only
+   to the local SimulSI server);
 2. view parameters, provenance and per-scenario summaries with CIs;
 3. run built-in models and models loaded with `simulsi ui --model file.py`
    with your own parameters, scenarios, replications and seed;
