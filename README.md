@@ -65,14 +65,19 @@ for commercial packages; see
 
 ## Installation
 
-SimulSI is not on PyPI yet; install from source (Python 3.11+):
+Python 3.11+, from [PyPI](https://pypi.org/project/simulsi/):
+
+```bash
+pip install simulsi             # core (includes the CLI and the web dashboard)
+pip install "simulsi[viz]"      # + matplotlib plots
+pip install "simulsi[all]"      # + pandas, Parquet, matplotlib, Plotly
+```
+
+From source (for development):
 
 ```bash
 git clone https://github.com/Yashjindal11/simulsi.git && cd simulsi
 python -m venv .venv
-.venv/bin/pip install -e .            # core
-.venv/bin/pip install -e ".[viz]"     # + matplotlib plots
-.venv/bin/pip install -e ".[all]"     # + pandas, Parquet, matplotlib, Plotly
 .venv/bin/pip install -e ".[dev]"     # everything needed to run the tests
 ```
 

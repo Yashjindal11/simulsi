@@ -5,9 +5,8 @@
 SimulSI needs Python 3.11 or newer.
 
 ```bash
-git clone https://github.com/Yashjindal11/simulsi.git && cd simulsi
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[viz]"          # core + matplotlib
+pip install "simulsi[viz]"       # core + matplotlib, from PyPI
 ```
 
 | Extra | Adds |
