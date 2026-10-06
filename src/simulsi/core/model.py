@@ -281,6 +281,7 @@ class Model:
         *,
         seed: int | None = None,
         trace: bool = False,
+        warmup: float | None = None,
         **sim_options: Any,
     ) -> Simulation:
         """Build (but do not run) a simulation - handy for stepping and inspection."""
@@ -288,9 +289,15 @@ class Model:
         options = {**self.sim_options, **sim_options}
         sim = Simulation(seed=seed, name=self.name, trace=trace, **options)
         self.build(sim, p)
-        sim._origin = (self, p, {"trace": trace, **options})
-        if self.warmup > 0:
-            sim.warmup(self.warmup)
+        origin = {"trace": trace, **options}
+        if warmup is not None:
+            if warmup < 0:
+                raise ConfigError(f"warmup must be >= 0, got {warmup}")
+            origin["warmup"] = warmup
+        sim._origin = (self, p, origin)
+        effective = self.warmup if warmup is None else warmup
+        if effective > 0:
+            sim.warmup(effective)
         return sim
 
     def simulate(
@@ -299,17 +306,35 @@ class Model:
         *,
         seed: int | None = None,
         duration: float | None = None,
+        warmup: float | None = None,
         trace: bool = False,
         **sim_options: Any,
     ) -> SimulationResult:
-        """Run one replication and return its result."""
+        """Run one replication and return its result.
+
+        If ``duration`` is shorter than the model's warm-up and no ``warmup`` is
+        given, the warm-up is scaled to the same fraction of the shorter run.
+        """
         p = params if isinstance(params, Params) else self.resolve(params)
-        sim = self.create(p, seed=seed, trace=trace, **sim_options)
         horizon = duration if duration is not None else self.duration
-        if self.warmup > 0 and horizon is not None and horizon <= self.warmup:
+        note = None
+        if (
+            warmup is None
+            and self.warmup > 0
+            and horizon is not None
+            and self.duration is not None
+            and horizon <= self.warmup
+        ):
+            warmup = self.warmup * horizon / self.duration
+            note = f"warm-up scaled from {self.warmup:g} to {warmup:g} for run length {horizon:g}"
+        sim = self.create(p, seed=seed, trace=trace, warmup=warmup, **sim_options)
+        effective = self.warmup if warmup is None else warmup
+        if effective > 0 and horizon is not None and horizon <= effective:
             sim.warn(
-                f"run length {horizon:g} does not exceed the warm-up {self.warmup:g}; statistics were not reset"
+                f"run length {horizon:g} does not exceed the warm-up {effective:g}; statistics were not reset"
             )
+        if note:
+            sim.warn(note)
         result = sim.run(until=horizon)
         result.details["parameters"] = p.to_jsonable()
         result.details["model"] = {"name": self.name, "version": self.version}

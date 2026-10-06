@@ -120,3 +120,15 @@ def test_builtin_mmc_and_erlang_c() -> None:
     assert m.metrics["resource.server.utilization"] == pytest.approx(0.5, abs=0.05)
     m2 = pickle.loads(pickle.dumps(mmc))
     assert m2.simulate({"arrival_rate": 0.5}, seed=1).metrics == m.metrics
+
+
+def test_warmup_override_and_scaling() -> None:
+    r = mmc.simulate(seed=1, duration=500)
+    assert any("warm-up scaled from 1000 to 50" in w for w in r.warnings)
+    assert r.metrics["sim.observed_time"] == pytest.approx(450)
+    r2 = mmc.simulate(seed=1, duration=500, warmup=100)
+    assert r2.metrics["sim.observed_time"] == pytest.approx(400) and not r2.warnings
+    r3 = mmc.simulate(seed=1, duration=500, warmup=0)
+    assert r3.metrics["sim.observed_time"] == pytest.approx(500)
+    with pytest.raises(ConfigError):
+        mmc.create(seed=1, warmup=-1)

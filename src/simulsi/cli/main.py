@@ -122,7 +122,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         m = resolve_model(target)
         seed = args.seed if args.seed is not None else 0
         duration = args.duration
-    result = m.simulate(params, seed=seed, duration=duration, trace=bool(args.trace))
+    result = m.simulate(
+        params, seed=seed, duration=duration, warmup=args.warmup, trace=bool(args.trace)
+    )
     if args.trace and result.log is not None:
         p = result.log.export(args.trace)
         sys.stderr.write(f"wrote {len(result.log)} log records to {p}\n")
@@ -404,6 +406,12 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--param", "-p", action="append", metavar="KEY=VALUE")
     s.add_argument("--seed", type=int, default=None)
     s.add_argument("--duration", type=float, default=None)
+    s.add_argument(
+        "--warmup",
+        type=float,
+        default=None,
+        help="statistics reset time (default: the model's; scaled if --duration is shorter)",
+    )
     s.add_argument("--metric", "-m", action="append", help="only show these metrics")
     s.add_argument("--trace", metavar="FILE", help="write the event log (.json/.csv/.parquet)")
     s.add_argument("--json", action="store_true", help="print the full result as JSON")
