@@ -271,8 +271,9 @@ class Resource:
             )
 
     def _grant(self, req: Request) -> None:
-        sim = self._require_sim()
-        req.granted_at = sim.now
+        sim = self.sim
+        assert sim is not None  # requests are only issued by attached resources
+        req.granted_at = sim.clock._now
         self.users.append(req)
         self.busy.record(len(self.users))
         self.grants.increment()
@@ -326,11 +327,13 @@ class Resource:
             raise ResourceUsageError(f"{req!r} was already released")
         if not req.granted:
             raise ResourceUsageError(f"{req!r} was never granted; cancel() it instead")
-        sim = self._require_sim()
+        sim = self.sim
+        assert sim is not None  # granted, so attached
         self.users.remove(req)
-        req.released_at = sim.now
-        if req.owner is not None and req in req.owner.held:
-            req.owner.held.remove(req)
+        req.released_at = sim.clock._now
+        owner = req.owner
+        if owner is not None and req in owner.held:
+            owner.held.remove(req)
         self.busy.record(len(self.users))
         self.releases.increment()
         if sim.log is not None:

@@ -130,7 +130,7 @@ class Simulation:
 
     @property
     def now(self) -> float:
-        return self.clock.now
+        return self.clock._now
 
     @property
     def now_datetime(self) -> datetime:
@@ -332,12 +332,24 @@ class Simulation:
         limit = math.inf if max_events is None else max_events
         executed = 0
         pop_due = self.event_queue.pop_due
-        execute = self._execute
+        clock = self.clock
+        executed_status = EventStatus.EXECUTED
+        # Same steps as _execute, inlined: this loop runs once per event.
         while executed < limit and not self._stop_requested:
             event = pop_due(horizon)
             if event is None:
                 break
-            execute(event)
+            clock._now = event.timestamp
+            event.status = executed_status
+            self.events_processed += 1
+            if event.internal:
+                event.execute(self)
+            else:
+                if self.log is not None:
+                    self.log.append(
+                        LogRecord(event.timestamp, event.event_type, metadata=dict(event.payload))
+                    )
+                event.execute(self)
             executed += 1
         stopped_early = self._stop_requested or executed >= limit
         if not stopped_early and math.isfinite(horizon):

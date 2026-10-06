@@ -57,3 +57,36 @@ variation. Re-run the script on your hardware rather than relying on them.
   serial runs either way (tested).
 * `tests/performance/test_performance.py` guards against regressions with
   generous floors (about 10x below these numbers) and a linear-scaling check.
+
+## Comparison with SimPy
+
+[`compare_simpy.py`](compare_simpy.py) runs the same M/M/2 queue (arrival
+rate 1.8, service rate 1.0, a generator process per customer, NumPy draws)
+in SimulSI and in [SimPy](https://simpy.readthedocs.io/), and checks that
+both produce the same mean wait.
+
+```bash
+pip install simpy
+python benchmarks/compare_simpy.py --customers 100000 --repeat 3
+```
+
+Measured on 2026-10-06 (Python 3.12.15, SimulSI 0.3.0.dev, SimPy 4.1.2,
+Apple silicon, best of 3):
+
+| library | seconds | customers/s | mean wait |
+|---|---:|---:|---:|
+| SimulSI | 1.35 | 73,800 | 4.6536 |
+| SimPy | 0.84 | 118,700 | 4.6536 |
+
+The two give identical results, and SimulSI takes about 1.6x as long. Part of
+the gap is extra work SimulSI does on every request and release: it records
+time-weighted utilization and queue length, a wait-time tally and counters,
+and tracks which process holds each unit so unreleased resources can be
+reported. SimPy leaves that bookkeeping to the model. The rest is per-event
+overhead (lazy cancellation, the event status machine). Profiling for this
+comparison led to hot-path changes that cut the gap from 1.85x and made the
+`processes` benchmark about 14% faster.
+
+If raw speed on very large models matters most, SimPy (or a compiled
+engine) is the better choice. SimulSI is aimed at the experiment layer:
+replications, statistics, scenarios and analysis.

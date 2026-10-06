@@ -166,7 +166,7 @@ class TimeWeighted:
             self.series.append((now, self.value))
 
     def record(self, value: float) -> None:
-        now = self._clock.now
+        now = self._clock._now
         dt = now - self._last_t
         if dt > 0:
             v = self.value

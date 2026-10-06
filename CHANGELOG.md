@@ -25,6 +25,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Faster process engine (about 14% more events per second on process models);
+  `benchmarks/compare_simpy.py` compares against SimPy.
 - Worker process pools are reused across experiments in the same process
   (`shutdown_workers()` to release them).
 

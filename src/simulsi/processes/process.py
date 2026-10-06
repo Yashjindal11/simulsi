@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Generator, Iterable
 from datetime import timedelta
+from types import GeneratorType
 from typing import TYPE_CHECKING, Any
 
 from simulsi.errors import EventStateError, Interrupt
@@ -129,7 +130,11 @@ class Timeout(Waitable):
         # finished timeouts are freed by reference counting instead of the GC.
         self._event = None
         self._value = value
-        self._run_callbacks()
+        callbacks = self._callbacks
+        if callbacks:
+            self._callbacks = []
+            for cb in callbacks:
+                cb(self)
 
     def cancel(self) -> None:
         """Withdraw the timeout if nobody is waiting on it any more."""
@@ -218,7 +223,7 @@ class Process(Waitable):
         name: str | None = None,
         entity: Entity | None = None,
     ) -> None:
-        if not isinstance(generator, Generator):
+        if type(generator) is not GeneratorType and not isinstance(generator, Generator):
             raise TypeError(
                 "sim.process() needs a generator; did you forget to call the function, "
                 f"or does it lack a `yield`? got {type(generator).__name__}"
@@ -266,7 +271,11 @@ class Process(Waitable):
                 except BaseException as err:
                     self._terminate(None, err)
                     return
-                if type(yielded) is Timeout or isinstance(yielded, Waitable):
+                target: Waitable | None
+                if type(yielded) is float:
+                    # Fast path for the most common yield: a delay in time units.
+                    target = Timeout(sim, yielded)
+                elif type(yielded) is Timeout or isinstance(yielded, Waitable):
                     target = yielded if yielded.sim is self.sim else None
                 else:
                     target = self._coerce(yielded)
