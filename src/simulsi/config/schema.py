@@ -47,6 +47,9 @@ class ExperimentSection(_Strict):
     confidence: float = Field(default=0.95, gt=0, lt=1)
     on_error: Literal["raise", "record"] = "raise"
     multiple_comparisons: Literal["none", "bonferroni", "holm", "bh"] = "none"
+    target_precision: float | None = Field(default=None, gt=0, lt=1)
+    precision_metrics: list[str] | None = None
+    max_replications: int = Field(default=1000, ge=3, le=1_000_000)
 
 
 class ScenarioSection(_Strict):

@@ -253,3 +253,39 @@ def test_compare_with_multiple_comparison_adjustment() -> None:
     assert all(r.p_adjusted >= r.p_value for r in holm.rows if r.p_value == r.p_value)
     assert holm.get("resource.server.wait.mean", "two").significant
     assert "p_adj" in holm.format() and "p_adj" not in plain.format()
+
+
+def test_run_until_precision_adds_replications() -> None:
+    calls: list[int] = []
+    exp = Experiment(
+        short_mmc(),
+        [Scenario("baseline", FAST), Scenario("two", {**FAST, "servers": 2})],
+        replications=3,
+        seed=4,
+    )
+    res = exp.run_until(
+        0.05,
+        ["resource.server.utilization"],
+        max_replications=60,
+        progress=lambda d, t: calls.append(d),
+    )
+    st = res.metadata.stopping
+    assert st is not None and st["met"] and st["replications_per_round"][0] == 3
+    for sc in res.scenarios:
+        assert res.replication_advice(
+            "resource.server.utilization", sc, relative_precision=0.05
+        ).sufficient
+    # earlier replications are reused, not re-run
+    first = Experiment(short_mmc(), Scenario("baseline", FAST), replications=3, seed=4).run()
+    assert (
+        res.values("resource.server.utilization", "baseline")[:3].tolist()
+        == first.values("resource.server.utilization").tolist()
+    )
+
+
+def test_run_until_stops_at_max() -> None:
+    exp = Experiment(short_mmc(), Scenario("baseline", FAST), replications=3, seed=1)
+    res = exp.run_until(0.0001, ["resource.server.wait.mean"], max_replications=6)
+    assert res.metadata.stopping["met"] is False and len(res.records) == 6
+    with pytest.raises(ConfigError):
+        exp.run_until(0.05, [])

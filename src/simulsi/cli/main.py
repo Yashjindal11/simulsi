@@ -167,7 +167,28 @@ def cmd_experiment(args: argparse.Namespace) -> int:
             if done == n:
                 sys.stderr.write("\n")
 
-    result = exp.run(checkpoint=args.checkpoint, progress=progress)
+    target = args.until_precision or cfg.experiment.target_precision
+    if target:
+        watch = cfg.experiment.precision_metrics or cfg.metrics
+        if not watch:
+            raise ConfigError(
+                "precision-based stopping needs experiment.precision_metrics or metrics"
+            )
+        result = exp.run_until(
+            target,
+            watch,
+            confidence=cfg.experiment.confidence,
+            max_replications=cfg.experiment.max_replications,
+            checkpoint=args.checkpoint,
+            progress=progress,
+        )
+        st = result.metadata.stopping or {}
+        _print(
+            f"stopped after {st.get('replications_per_round', ['?'])[-1]} replications per scenario "
+            f"({'precision reached' if st.get('met') else 'max_replications reached: ' + ', '.join(st.get('unmet', []))})"
+        )
+    else:
+        result = exp.run(checkpoint=args.checkpoint, progress=progress)
     if cfg.cost:
         result.derive(CostModel.from_dict(cfg.cost).metrics)
     metrics = cfg.metrics
@@ -469,6 +490,12 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--seed", type=int)
     s.add_argument("--output", "-o", help="results directory (overrides output.directory)")
     s.add_argument("--checkpoint", help="JSON-lines checkpoint file for resumable runs")
+    s.add_argument(
+        "--until-precision",
+        type=float,
+        metavar="P",
+        help="keep adding replications until each reported metric reaches relative precision P",
+    )
     s.add_argument(
         "--adjust",
         choices=["none", "bonferroni", "holm", "bh"],

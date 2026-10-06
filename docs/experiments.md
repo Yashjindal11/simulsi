@@ -86,6 +86,10 @@ name and version, git commit, timestamp, seeds, environment and runtime.
   around a second, so the pool is kept and reused by later experiments in the
   same Python process (call `simulsi.experiments.shutdown_workers()` after
   editing a model file in a notebook).
+* **Run until precise** - `exp.run_until(0.05, ["resource.server.wait.mean"])`
+  keeps adding replications (reusing earlier ones) until every listed metric
+  in every scenario has a relative CI half-width of 5%, or `max_replications`
+  is reached; `result.metadata.stopping` records what happened.
 * **Checkpoints** - `exp.run(checkpoint="run.jsonl")` appends each finished
   replication; re-running with the same file skips completed work and refuses
   a file written by a different experiment definition.

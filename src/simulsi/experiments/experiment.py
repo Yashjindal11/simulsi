@@ -87,6 +87,7 @@ class ExperimentMetadata:
     duration: float | None = None
     warmup: float = 0.0
     format_version: int = FORMAT_VERSION
+    stopping: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -217,6 +218,7 @@ class Experiment:
         workers: int | None = None,
         checkpoint: str | Path | None = None,
         progress: Callable[[int, int], None] | None = None,
+        _reuse: dict[tuple[str, int], ReplicationRecord] | None = None,
     ) -> ExperimentResult:
         """Run every (scenario, replication) pair and collect the results.
 
@@ -258,10 +260,10 @@ class Experiment:
             for s in self.scenarios
             for r in range(self.replications)
         ]
-        done: dict[tuple[str, int], ReplicationRecord] = {}
+        done: dict[tuple[str, int], ReplicationRecord] = {} if _reuse is None else _reuse
         ckpt = _Checkpoint(Path(checkpoint), meta) if checkpoint is not None else None
         if ckpt is not None:
-            done = ckpt.load()
+            done.update(ckpt.load())
         todo = [t for t in tasks if (t[0], t[1]) not in done]
         params_by_scenario = {s.name: dict(s.parameters) for s in self.scenarios}
         raise_errors = self.on_error == "raise"
@@ -296,6 +298,60 @@ class Experiment:
         meta.runtime = time.perf_counter() - t0
         records = [done[(n, r)] for n, r, _ in tasks]
         return ExperimentResult(meta, records)
+
+    def run_until(
+        self,
+        relative_precision: float,
+        metrics: Sequence[str],
+        *,
+        confidence: float = 0.95,
+        max_replications: int = 1000,
+        checkpoint: str | Path | None = None,
+        progress: Callable[[int, int], None] | None = None,
+    ) -> ExperimentResult:
+        """Add replications until every metric in every scenario reaches ``relative_precision``.
+
+        Starts with ``self.replications`` (at least 3), then repeatedly asks
+        :func:`~simulsi.statistics.required_replications` how many are needed
+        and runs only the missing ones (replication seeds do not depend on the
+        total, so earlier runs are reused). Stops at ``max_replications``.
+        The stopping decision itself uses the data, so the final interval's
+        coverage is approximate - the standard caveat of sequential procedures.
+        """
+        from simulsi.statistics.core import required_replications
+
+        if not metrics:
+            raise ConfigError("run_until needs at least one metric")
+        n = max(3, self.replications)
+        if n > max_replications:
+            raise ConfigError("max_replications is smaller than the initial replications")
+        cache: dict[tuple[str, int], ReplicationRecord] = {}
+        history: list[int] = []
+        while True:
+            res = self.run(replications=n, checkpoint=checkpoint, progress=progress, _reuse=cache)
+            history.append(n)
+            needed = n
+            unmet: list[str] = []
+            for sc in res.scenarios:
+                for m in metrics:
+                    adv = required_replications(res.values(m, sc), relative_precision, confidence)
+                    if not adv.sufficient:
+                        unmet.append(f"{sc}/{m}")
+                        needed = max(needed, adv.required_n or max_replications)
+            if not unmet or n >= max_replications:
+                break
+            n = min(max_replications, max(needed, n + 1))
+        res.metadata.stopping = {
+            "rule": "relative_precision",
+            "relative_precision": relative_precision,
+            "confidence": confidence,
+            "metrics": list(metrics),
+            "max_replications": max_replications,
+            "replications_per_round": history,
+            "met": not unmet,
+            "unmet": unmet,
+        }
+        return res
 
 
 _POOLS: dict[tuple[Any, ...], cf.ProcessPoolExecutor] = {}

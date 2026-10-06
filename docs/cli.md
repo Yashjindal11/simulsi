@@ -4,7 +4,7 @@
 simulsi init [DIR] [--force]
 simulsi validate TARGET [-p KEY=VALUE ...] [--smoke T]
 simulsi run TARGET [-p KEY=VALUE ...] [--seed N] [--duration T] [--warmup T] [-m METRIC ...] [--trace FILE] [--json]
-simulsi experiment CONFIG [-r N] [-w N] [--seed N] [-o DIR] [--checkpoint FILE] [--adjust METHOD] [-q]
+simulsi experiment CONFIG [-r N] [-w N] [--seed N] [-o DIR] [--checkpoint FILE] [--adjust METHOD] [--until-precision P] [-q]
 simulsi analyze RESULTS [-m METRIC ...] [--baseline NAME] [--confidence C] [--precision P] [--adjust METHOD] [--json]
 simulsi warmup TARGET [-p KEY=VALUE ...] [--series KEY] [-r N] [--duration T] [--bins N] [--json]
 simulsi benchmark [--sizes N ...] [--workers N ...] [--replications N] [--no-memory] [--json]
@@ -72,6 +72,9 @@ experiment:
   confidence: 0.95
   on_error: raise                # or "record" to keep going and store errors
   multiple_comparisons: holm     # none (default), bonferroni, holm or bh
+  target_precision: 0.05         # optional: add replications until +-5% (relative) ...
+  precision_metrics: [resource.server.wait.mean]   # ... for these metrics (default: metrics)
+  max_replications: 500          # upper limit for precision-based stopping
 
 parameters:                      # base values for every scenario
   arrival_rate: 0.9

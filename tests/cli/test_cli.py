@@ -242,3 +242,14 @@ def test_file_model_runs_in_worker_processes(tmp_path: Path) -> None:
     exp.workers = 1
     ser = exp.run()
     assert par.values("k2", "big").tolist() == ser.values("k2", "big").tolist()
+
+
+def test_experiment_until_precision(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    cfg = tmp_path / "e.yaml"
+    cfg.write_text(
+        "model: builtin:mmc\nsimulation: {duration: 600, warmup: 60}\n"
+        "experiment: {replications: 3, max_replications: 40}\n"
+        "parameters: {arrival_rate: 0.5}\nmetrics: [resource.server.utilization]\n"
+    )
+    code, out, _ = run_cli(["experiment", str(cfg), "-q", "--until-precision", "0.05"], capsys)
+    assert code == 0 and "stopped after" in out and "precision reached" in out
