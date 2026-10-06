@@ -231,3 +231,25 @@ def test_worker_pool_is_reused_and_can_be_shut_down() -> None:
     assert len(exp_mod._POOLS) == 1
     shutdown_workers()
     assert not exp_mod._POOLS
+
+
+def test_compare_with_multiple_comparison_adjustment() -> None:
+    res = Experiment(
+        short_mmc(),
+        [
+            Scenario("baseline", FAST),
+            Scenario("two", {**FAST, "servers": 2}),
+            Scenario("same", FAST),
+        ],
+        replications=5,
+        seed=2,
+    ).run()
+    metrics = ["resource.server.wait.mean", "resource.server.utilization"]
+    plain = compare(res, "baseline", metrics=metrics)
+    bonf = compare(res, "baseline", metrics=metrics, adjust="bonferroni")
+    holm = compare(res, "baseline", metrics=metrics, adjust="holm")
+    for a, b in zip(plain.rows, bonf.rows, strict=True):
+        assert (b.ci_high - b.ci_low) >= (a.ci_high - a.ci_low)  # simultaneous intervals are wider
+    assert all(r.p_adjusted >= r.p_value for r in holm.rows if r.p_value == r.p_value)
+    assert holm.get("resource.server.wait.mean", "two").significant
+    assert "p_adj" in holm.format() and "p_adj" not in plain.format()

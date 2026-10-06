@@ -281,8 +281,12 @@ def make_handler(state: DashboardState, allowed_hosts: set[str]) -> type[BaseHTT
                 elif len(parts) == 3 and parts[0] == "results" and parts[2] == "compare":
                     res = state.get(parts[1])
                     metrics = [m for m in q.get("metrics", "").split(",") if m] or None
+                    adjust = q.get("adjust", "none")
+                    if adjust not in ("none", "bonferroni", "holm", "bh"):
+                        raise ConfigError(f"unknown adjustment {adjust!r}")
                     cmp = compare(res, q.get("baseline", res.scenarios[0]), metrics=metrics,
-                                  confidence=float(q.get("confidence", 0.95)))
+                                  confidence=float(q.get("confidence", 0.95)),
+                                  adjust=adjust)  # type: ignore[arg-type]
                     self._json(cmp.to_dicts())
                 elif len(parts) == 3 and parts[0] == "results" and parts[2] == "export.json":
                     body = json.dumps(to_jsonable(state.get(parts[1]).to_dict()), indent=2, allow_nan=False)

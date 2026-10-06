@@ -176,12 +176,18 @@ def cmd_experiment(args: argparse.Namespace) -> int:
     _print(result.format_summary(metrics, confidence=cfg.experiment.confidence))
     if len(result.scenarios) > 1 and cfg.baseline in result.scenarios:
         _print("")
+        adjust = args.adjust or cfg.experiment.multiple_comparisons
+        note = "" if adjust == "none" else f", {adjust}-adjusted"
         _print(
-            f"Comparison with {cfg.baseline!r} ({cfg.experiment.confidence:.0%} CI; * = CI excludes 0):"
+            f"Comparison with {cfg.baseline!r} ({cfg.experiment.confidence:.0%} CI{note}; * = significant):"
         )
         _print(
             compare(
-                result, cfg.baseline, metrics=metrics, confidence=cfg.experiment.confidence
+                result,
+                cfg.baseline,
+                metrics=metrics,
+                confidence=cfg.experiment.confidence,
+                adjust=adjust,
             ).format()
         )
     if result.errors:
@@ -228,7 +234,11 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         }
         if args.baseline in result.scenarios and len(result.scenarios) > 1:
             payload["comparison"] = compare(
-                result, args.baseline, metrics=metrics, confidence=args.confidence
+                result,
+                args.baseline,
+                metrics=metrics,
+                confidence=args.confidence,
+                adjust=args.adjust or "none",
             ).to_dicts()
         from simulsi.serialization.io import to_jsonable
 
@@ -244,7 +254,15 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     _print(result.format_summary(metrics, confidence=args.confidence))
     if args.baseline in result.scenarios and len(result.scenarios) > 1:
         _print("")
-        _print(compare(result, args.baseline, metrics=metrics, confidence=args.confidence).format())
+        _print(
+            compare(
+                result,
+                args.baseline,
+                metrics=metrics,
+                confidence=args.confidence,
+                adjust=args.adjust or "none",
+            ).format()
+        )
     if args.precision:
         rows = []
         for sc in result.scenarios:
@@ -425,6 +443,12 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--seed", type=int)
     s.add_argument("--output", "-o", help="results directory (overrides output.directory)")
     s.add_argument("--checkpoint", help="JSON-lines checkpoint file for resumable runs")
+    s.add_argument(
+        "--adjust",
+        choices=["none", "bonferroni", "holm", "bh"],
+        default=None,
+        help="multiple-comparison correction for scenario comparisons",
+    )
     s.add_argument("--quiet", "-q", action="store_true")
     s.add_argument("--allow-outside", **allow)  # type: ignore[arg-type]
     s.set_defaults(func=cmd_experiment)
@@ -434,6 +458,12 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--metric", "-m", action="append")
     s.add_argument("--baseline", default="baseline")
     s.add_argument("--confidence", type=float, default=0.95)
+    s.add_argument(
+        "--adjust",
+        choices=["none", "bonferroni", "holm", "bh"],
+        default=None,
+        help="multiple-comparison correction for scenario comparisons",
+    )
     s.add_argument(
         "--precision",
         type=float,

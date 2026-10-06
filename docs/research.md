@@ -61,7 +61,8 @@ assert replay.metrics["resource.server.wait.mean"] == rec.metrics["resource.serv
   difference means the *model* responds to the change.
 * **Many comparisons inflate false positives.** With 20 metrics at 95%,
   expect about one spurious "significant" difference. Pre-register the
-  metrics that matter, or adjust (e.g. Bonferroni: use `confidence=1 - 0.05/k`).
+  metrics that matter, or adjust: `compare(..., adjust="holm")`
+  (`simulsi analyze --adjust holm`).
 * **Optimising over noise flatters the winner.** Re-evaluate the selected
   design with fresh seeds before reporting it.
 

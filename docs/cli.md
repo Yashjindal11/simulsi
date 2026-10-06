@@ -3,9 +3,9 @@
 ```text
 simulsi init [DIR] [--force]
 simulsi validate TARGET [-p KEY=VALUE ...] [--smoke T]
-simulsi run TARGET [-p KEY=VALUE ...] [--seed N] [--duration T] [-m METRIC ...] [--trace FILE] [--json]
-simulsi experiment CONFIG [-r N] [-w N] [--seed N] [-o DIR] [--checkpoint FILE] [-q]
-simulsi analyze RESULTS [-m METRIC ...] [--baseline NAME] [--confidence C] [--precision P] [--json]
+simulsi run TARGET [-p KEY=VALUE ...] [--seed N] [--duration T] [--warmup T] [-m METRIC ...] [--trace FILE] [--json]
+simulsi experiment CONFIG [-r N] [-w N] [--seed N] [-o DIR] [--checkpoint FILE] [--adjust METHOD] [-q]
+simulsi analyze RESULTS [-m METRIC ...] [--baseline NAME] [--confidence C] [--precision P] [--adjust METHOD] [--json]
 simulsi benchmark [--sizes N ...] [--workers N ...] [--replications N] [--no-memory] [--json]
 simulsi visualize TARGET [-o DIR] [-m METRIC ...] [--backend matplotlib|plotly] [--format png|svg|pdf]
 simulsi ui [RESULTS ...] [--model REF ...] [--host H] [--port P] [--no-browser]
@@ -67,6 +67,7 @@ experiment:
   common_random_numbers: true    # same seeds for every scenario (paired comparisons)
   confidence: 0.95
   on_error: raise                # or "record" to keep going and store errors
+  multiple_comparisons: holm     # none (default), bonferroni, holm or bh
 
 parameters:                      # base values for every scenario
   arrival_rate: 0.9

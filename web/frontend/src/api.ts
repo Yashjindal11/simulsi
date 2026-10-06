@@ -24,9 +24,9 @@ export const api = {
     request<MetricDetail>(
       `/api/results/${encodeURIComponent(id)}/metric?metric=${encodeURIComponent(metric)}&scenario=${encodeURIComponent(scenario)}`,
     ),
-  compare: (id: string, baseline: string, metrics: string[], confidence = 0.95) =>
+  compare: (id: string, baseline: string, metrics: string[], adjust = "none", confidence = 0.95) =>
     request<CompareRow[]>(
-      `/api/results/${encodeURIComponent(id)}/compare?baseline=${encodeURIComponent(baseline)}&metrics=${encodeURIComponent(metrics.join(","))}&confidence=${confidence}`,
+      `/api/results/${encodeURIComponent(id)}/compare?baseline=${encodeURIComponent(baseline)}&metrics=${encodeURIComponent(metrics.join(","))}&confidence=${confidence}&adjust=${adjust}`,
     ),
   run: (body: unknown) => post<Job>("/api/run", body),
   job: (id: string) => request<Job>(`/api/jobs/${encodeURIComponent(id)}`),

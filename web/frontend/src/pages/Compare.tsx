@@ -9,6 +9,7 @@ export function CompareView({ id }: { id: string }) {
   const { data, error } = useResult(id);
   const [baseline, setBaseline] = useState("");
   const [filter, setFilter] = useState("wait");
+  const [adjust, setAdjust] = useState("none");
   const [rows, setRows] = useState<CompareRow[] | null>(null);
   const [cmpError, setCmpError] = useState<string | null>(null);
 
@@ -29,8 +30,8 @@ export function CompareView({ id }: { id: string }) {
       return;
     }
     setCmpError(null);
-    api.compare(id, baseline, metrics).then(setRows).catch((e: Error) => setCmpError(e.message));
-  }, [id, baseline, metrics, data]);
+    api.compare(id, baseline, metrics, adjust).then(setRows).catch((e: Error) => setCmpError(e.message));
+  }, [id, baseline, metrics, data, adjust]);
 
   if (!data) return <Loading error={error} />;
   if (data.scenarios.length < 2) return <p className="text-sm text-slate-500">This experiment has a single scenario; nothing to compare.</p>;
@@ -42,13 +43,15 @@ export function CompareView({ id }: { id: string }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-4">
         <Select label="Baseline" value={baseline} options={data.scenarios} onChange={setBaseline} />
+        <Select label="Multiple comparisons" value={adjust} options={["none", "holm", "bonferroni", "bh"]} onChange={setAdjust} />
         <label className="flex flex-col gap-1">
           <span className="label">Metrics containing</span>
           <input className="input w-64" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="e.g. wait, utilization" />
         </label>
         <p className="max-w-xl text-xs text-slate-500">
           Differences are scenario − baseline with 95% confidence intervals ({data.metadata.common_random_numbers ? "paired t, common random numbers" : "Welch t"}).
-          They quantify simulation sampling error only; no multiple-comparison correction is applied.
+          They quantify simulation sampling error only.{" "}
+          {adjust === "none" ? "No multiple-comparison correction is applied." : `Significance uses ${adjust}-adjusted p-values.`}
         </p>
       </div>
       {cmpError && <Loading error={cmpError} />}
@@ -70,7 +73,7 @@ export function CompareView({ id }: { id: string }) {
                     <td>{fmt(r.absolute_difference)}</td>
                     <td>{pct(r.percentage_difference)}</td>
                     <td>{r.ci_low === null ? "–" : `${fmt(r.ci_low)} … ${fmt(r.ci_high)}`}</td>
-                    <td>{r.significant ? <span className="rounded bg-indigo-100 px-1.5 text-xs text-indigo-800">CI excludes 0</span> : null}</td>
+                    <td>{r.significant ? <span className="rounded bg-indigo-100 px-1.5 text-xs text-indigo-800">{adjust === "none" ? "CI excludes 0" : `p_adj ${fmt(r.p_adjusted)}`}</span> : null}</td>
                   </tr>
                 ))}
               </tbody>

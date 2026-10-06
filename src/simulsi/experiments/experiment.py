@@ -481,10 +481,18 @@ class ExperimentResult:
         metrics: Iterable[str] | None = None,
         *,
         confidence: float = 0.95,
+        adjust: str = "none",
     ) -> Any:
         from simulsi.analysis.comparison import compare
 
-        return compare(self, baseline, scenarios, metrics, confidence=confidence)
+        return compare(
+            self,
+            baseline,
+            scenarios,
+            metrics,
+            confidence=confidence,
+            adjust=adjust,  # type: ignore[arg-type]
+        )
 
     def format_summary(self, metrics: Iterable[str] | None = None, confidence: float = 0.95) -> str:
         from simulsi.analysis.report import format_table

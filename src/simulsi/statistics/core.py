@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import numpy.typing as npt
@@ -416,3 +416,41 @@ def welch_difference(
         ny,
         confidence,
     )
+
+
+AdjustMethod = Literal["none", "bonferroni", "holm", "bh"]
+
+
+def adjust_p_values(p_values: Sequence[float], method: AdjustMethod = "holm") -> list[float]:
+    """Adjust p-values for multiple comparisons; NaNs are kept and not counted.
+
+    * ``bonferroni`` - ``p * m``; controls the family-wise error rate.
+    * ``holm`` - Holm's step-down; also controls the family-wise error rate but
+      is uniformly more powerful than Bonferroni.
+    * ``bh`` - Benjamini-Hochberg; controls the false discovery rate (expected
+      share of false positives among the "significant" results).
+    """
+    p = np.asarray(p_values, dtype=float)
+    out = p.copy()
+    ok = ~np.isnan(p)
+    m = int(ok.sum())
+    if method == "none" or m == 0:
+        return out.tolist()
+    q = p[ok]
+    if method == "bonferroni":
+        adj = np.minimum(1.0, q * m)
+    elif method == "holm":
+        order = np.argsort(q)
+        stepped = np.maximum.accumulate((m - np.arange(m)) * q[order])
+        adj = np.empty(m)
+        adj[order] = np.minimum(1.0, stepped)
+    elif method == "bh":
+        order = np.argsort(q)[::-1]
+        ranks = m - np.arange(m)
+        stepped = np.minimum.accumulate(q[order] * m / ranks)
+        adj = np.empty(m)
+        adj[order] = np.minimum(1.0, stepped)
+    else:
+        raise ValueError(f"unknown adjustment {method!r}; use none, bonferroni, holm or bh")
+    out[ok] = adj
+    return out.tolist()

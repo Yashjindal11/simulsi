@@ -84,6 +84,7 @@ export interface CompareRow {
   method: string;
   n: number;
   significant: boolean;
+  p_adjusted: Num;
 }
 
 export interface ParamInfo {

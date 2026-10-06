@@ -46,6 +46,7 @@ class ExperimentSection(_Strict):
     common_random_numbers: bool = True
     confidence: float = Field(default=0.95, gt=0, lt=1)
     on_error: Literal["raise", "record"] = "raise"
+    multiple_comparisons: Literal["none", "bonferroni", "holm", "bh"] = "none"
 
 
 class ScenarioSection(_Strict):

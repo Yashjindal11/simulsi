@@ -1,9 +1,11 @@
 from simulsi.statistics.core import (
+    AdjustMethod,
     BatchMeans,
     Convergence,
     Difference,
     ReplicationAdvice,
     Summary,
+    adjust_p_values,
     batch_means,
     bootstrap_ci,
     convergence,
@@ -18,11 +20,13 @@ from simulsi.statistics.core import (
 )
 
 __all__ = [
+    "AdjustMethod",
     "BatchMeans",
     "Convergence",
     "Difference",
     "ReplicationAdvice",
     "Summary",
+    "adjust_p_values",
     "batch_means",
     "bootstrap_ci",
     "convergence",

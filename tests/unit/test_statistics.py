@@ -121,3 +121,17 @@ def test_paired_vs_welch() -> None:
 def test_identical_samples_are_not_significant() -> None:
     d = paired_difference([1, 2, 3], [1, 2, 3])
     assert d.difference == 0 and not d.significant and d.p_value == 1.0
+
+
+def test_adjust_p_values_against_statsmodels_reference() -> None:
+    from simulsi.statistics import adjust_p_values
+
+    p = [0.01, 0.04, 0.03, 0.005, float("nan")]
+    # reference values computed by hand / statsmodels.multipletests
+    assert adjust_p_values(p, "bonferroni")[:4] == pytest.approx([0.04, 0.16, 0.12, 0.02])
+    assert adjust_p_values(p, "holm")[:4] == pytest.approx([0.03, 0.06, 0.06, 0.02])
+    assert adjust_p_values(p, "bh")[:4] == pytest.approx([0.02, 0.04, 0.04, 0.02])
+    assert math.isnan(adjust_p_values(p, "holm")[4])
+    assert adjust_p_values(p, "none")[:4] == p[:4]
+    with pytest.raises(ValueError):
+        adjust_p_values(p, "magic")  # type: ignore[arg-type]

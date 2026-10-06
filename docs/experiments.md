@@ -138,9 +138,24 @@ print(row.absolute_difference, row.percentage_difference, row.ci_low, row.ci_hig
 
 Columns: metric, baseline, scenario, both means, absolute and percentage
 difference, CI, p-value, method (`paired-t` with common random numbers, else
-`welch-t`) and whether the CI excludes zero. No multiple-comparison
-correction is applied; with many metrics and scenarios some "significant"
-differences will be chance.
+`welch-t`) and whether the CI excludes zero.
+
+With many metrics and scenarios some "significant" differences will be
+chance. Pass `adjust=` to correct for that:
+
+```python
+holm = compare(result, "baseline", adjust="holm")   # or "bonferroni", "bh"
+print(holm.format())                                # adds a p_adj column
+```
+
+* `bonferroni` - every interval is widened to level `1 - alpha/m`, so all
+  intervals hold *simultaneously*; conservative.
+* `holm` - same family-wise guarantee, more powerful; adjusts p-values only.
+* `bh` - Benjamini-Hochberg; controls the expected share of false
+  discoveries rather than the chance of any.
+
+With `holm`/`bh`, `significant` means `p_adjusted < 1 - confidence` and the
+intervals are the ordinary per-comparison ones.
 
 ## Monte Carlo
 
