@@ -219,3 +219,15 @@ def test_monte_carlo_over_simulation_model() -> None:
     u = r.outputs["resource.server.utilization"]
     assert len(u) == 5 and np.all((u > 0.2) & (u < 0.7))
     assert not math.isnan(r.summary("resource.server.utilization").mean)
+
+
+def test_worker_pool_is_reused_and_can_be_shut_down() -> None:
+    from simulsi.experiments import experiment as exp_mod
+    from simulsi.experiments import shutdown_workers
+
+    shutdown_workers()
+    for seed in (1, 2):
+        Experiment(mmc, Scenario("baseline", FAST), replications=2, seed=seed, workers=2).run()
+    assert len(exp_mod._POOLS) == 1
+    shutdown_workers()
+    assert not exp_mod._POOLS

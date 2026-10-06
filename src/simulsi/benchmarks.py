@@ -124,5 +124,12 @@ def default_suite(
                 mem = run_engine_benchmark(name, n, memory=True)
                 out[-1].peak_memory_mb = mem.peak_memory_mb
     for w in workers:
-        out.append(run_experiment_benchmark(replications, w))
+        first = run_experiment_benchmark(replications, w)
+        if w > 1:
+            first.name = f"experiment(workers={w}, cold pool)"
+            warm = run_experiment_benchmark(replications, w)
+            warm.name = f"experiment(workers={w}, warm pool)"
+            out += [first, warm]
+        else:
+            out.append(first)
     return out

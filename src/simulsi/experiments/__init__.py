@@ -3,6 +3,7 @@ from simulsi.experiments.experiment import (
     ExperimentMetadata,
     ExperimentResult,
     ReplicationRecord,
+    shutdown_workers,
 )
 from simulsi.experiments.montecarlo import MonteCarloResult, monte_carlo, sample_inputs
 
@@ -14,4 +15,5 @@ __all__ = [
     "ReplicationRecord",
     "monte_carlo",
     "sample_inputs",
+    "shutdown_workers",
 ]

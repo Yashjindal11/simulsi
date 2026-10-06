@@ -82,8 +82,10 @@ name and version, git commit, timestamp, seeds, environment and runtime.
   `common_random_numbers=False` for independent scenarios.
 * **Parallelism** - `workers=N` uses a process pool. Results are identical to
   a serial run. The model must be importable (module-level build function);
-  guard scripts with `if __name__ == "__main__":`. Process start-up costs
-  around a second, so it pays off for longer replications.
+  guard scripts with `if __name__ == "__main__":`. Starting workers costs
+  around a second, so the pool is kept and reused by later experiments in the
+  same Python process (call `simulsi.experiments.shutdown_workers()` after
+  editing a model file in a notebook).
 * **Checkpoints** - `exp.run(checkpoint="run.jsonl")` appends each finished
   replication; re-running with the same file skips completed work and refuses
   a file written by a different experiment definition.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import atexit
 import concurrent.futures as cf
 import json
 import math
@@ -284,20 +285,46 @@ class Experiment:
             for a in args:
                 handle(_run_task(a))
         else:
-            from simulsi.config.schema import loaded_model_files, preload_model_files
-
             _check_picklable(self.model)
             chunk = max(1, len(args) // (self.workers * 4))
-            with cf.ProcessPoolExecutor(
-                max_workers=self.workers,
-                initializer=preload_model_files,
-                initargs=(loaded_model_files(),),
-            ) as pool:
-                for rec in pool.map(_run_task, args, chunksize=chunk):
+            try:
+                for rec in _pool(self.workers).map(_run_task, args, chunksize=chunk):
                     handle(rec)
+            except cf.process.BrokenProcessPool:
+                shutdown_workers()  # a crashed worker poisons the pool; start fresh next time
+                raise
         meta.runtime = time.perf_counter() - t0
         records = [done[(n, r)] for n, r, _ in tasks]
         return ExperimentResult(meta, records)
+
+
+_POOLS: dict[tuple[Any, ...], cf.ProcessPoolExecutor] = {}
+
+
+def _pool(workers: int) -> cf.ProcessPoolExecutor:
+    """A process pool reused across experiments (worker start-up costs about a second)."""
+    from simulsi.config.schema import loaded_model_files, preload_model_files
+
+    files = loaded_model_files()
+    key = (workers, tuple(sorted(files.items())))
+    pool = _POOLS.get(key)
+    if pool is None:
+        pool = cf.ProcessPoolExecutor(
+            max_workers=workers, initializer=preload_model_files, initargs=(files,)
+        )
+        _POOLS[key] = pool
+    return pool
+
+
+def shutdown_workers() -> None:
+    """Stop the reusable worker processes (e.g. after editing a model file in a notebook)."""
+    pools = list(_POOLS.values())
+    _POOLS.clear()
+    for pool in pools:
+        pool.shutdown(wait=True, cancel_futures=True)
+
+
+atexit.register(shutdown_workers)
 
 
 def _check_picklable(model: Model) -> None:
