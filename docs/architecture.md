@@ -106,7 +106,7 @@ model is pickled by reference (module + qualified name); models loaded from
 files by the CLI are re-imported in each worker by an initializer. Results
 come back in task order. Start-up cost (about a second with the `spawn`
 start method used on macOS and Windows) makes parallelism worthwhile only when
-replications take longer than that. See [benchmarks](../benchmarks/README.md).
+replications take longer than that. See [benchmarks](https://github.com/Yashjindal11/simulsi/blob/main/benchmarks/README.md).
 
 ## Checkpointing
 
@@ -143,7 +143,7 @@ files are found automatically; otherwise pass `model=`.
 ## Performance
 
 The engine is pure Python. Measured numbers are in
-[benchmarks/README.md](../benchmarks/README.md). Practical guidance:
+[benchmarks/README.md](https://github.com/Yashjindal11/simulsi/blob/main/benchmarks/README.md). Practical guidance:
 
 * Prefer `yield number` / `sim.use(...)` in processes; avoid creating
   entities you never inspect.

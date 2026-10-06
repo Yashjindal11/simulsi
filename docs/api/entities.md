@@ -1,0 +1,3 @@
+# Entities
+
+::: simulsi.entities.entity

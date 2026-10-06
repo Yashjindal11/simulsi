@@ -46,7 +46,7 @@ It is a pure-Python engine. On the development machine (an Apple silicon
 laptop, Python 3.12) it processes roughly 440k simple events per second, and
 about 240k events per second for process-based queueing models. Measured
 numbers, and how to reproduce them,
-are in [benchmarks/README.md](../benchmarks/README.md). For many replications,
+are in [benchmarks/README.md](https://github.com/Yashjindal11/simulsi/blob/main/benchmarks/README.md). For many replications,
 use `workers=N`.
 
 ## Why are my results different from yesterday?

@@ -1,5 +1,11 @@
 # SimulSI
 
+[![CI](https://github.com/Yashjindal11/simulsi/actions/workflows/ci.yml/badge.svg)](https://github.com/Yashjindal11/simulsi/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/simulsi)](https://pypi.org/project/simulsi/)
+[![Python](https://img.shields.io/pypi/pyversions/simulsi)](https://pypi.org/project/simulsi/)
+[![Docs](https://github.com/Yashjindal11/simulsi/actions/workflows/docs.yml/badge.svg)](https://yashjindal11.github.io/simulsi/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 **Simulation Intelligence** - *Model the system. Simulate the future.*
 
 SimulSI is a general-purpose, reproducible simulation and scenario
@@ -125,6 +131,10 @@ python scripts/run_examples.py      # all of them, quick mode
 ```
 
 ## Documentation
+
+The full documentation, including an API reference for every public class
+and function, is at **https://yashjindal11.github.io/simulsi/**. The same
+pages are in [`docs/`](docs):
 
 - [Getting started](docs/getting-started.md) - installation, quickstart, first experiment
 - [Core concepts](docs/concepts.md) - simulation, events, entities, resources, queues, processes, randomness, metrics, disruptions, validation, introspection

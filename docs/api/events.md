@@ -1,0 +1,3 @@
+# Events
+
+::: simulsi.events.event

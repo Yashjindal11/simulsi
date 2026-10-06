@@ -97,8 +97,8 @@ def grid(
 ) -> list[Scenario]:
     """Full factorial design: one scenario per combination of axis values.
 
-    >>> [s.name for s in grid({"capacity": [1, 2], "rate": [0.5]})]
-    ['capacity=1,rate=0.5', 'capacity=2,rate=0.5']
+    >>> " | ".join(s.name for s in grid({"capacity": [1, 2], "rate": [0.5]}))
+    'capacity=1,rate=0.5 | capacity=2,rate=0.5'
     """
     if not axes:
         raise ConfigError("grid needs at least one axis")

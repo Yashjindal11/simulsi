@@ -1,0 +1,83 @@
+site_name: SimulSI
+site_description: A general-purpose, reproducible simulation and scenario experimentation framework for Python.
+site_url: https://yashjindal11.github.io/simulsi/
+repo_url: https://github.com/Yashjindal11/simulsi
+repo_name: Yashjindal11/simulsi
+edit_uri: edit/main/docs/
+copyright: MIT License © 2026 Yash Jindal
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle: {icon: material/weather-night, name: Dark mode}
+    - scheme: slate
+      primary: indigo
+      toggle: {icon: material/weather-sunny, name: Light mode}
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc: {permalink: true}
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: sphinx
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            members_order: source
+            filters: ["!^_"]
+            merge_init_into_class: true
+            show_signature_annotations: true
+            separate_signature: true
+
+nav:
+  - Home: index.md
+  - User guide:
+      - Getting started: getting-started.md
+      - Core concepts: concepts.md
+      - Experiments and analysis: experiments.md
+      - Visualization and dashboard: visualization.md
+      - CLI and configuration: cli.md
+      - Examples: examples.md
+  - Background:
+      - Architecture: architecture.md
+      - Extending SimulSI: extending.md
+      - Research workflow: research.md
+      - FAQ: faq.md
+  - API reference:
+      - Simulation and clock: api/simulation.md
+      - Events: api/events.md
+      - Processes and disruptions: api/processes.md
+      - Resources and queues: api/resources.md
+      - Entities: api/entities.md
+      - Randomness: api/randomness.md
+      - Metrics: api/metrics.md
+      - Models and scenarios: api/models.md
+      - Experiments and Monte Carlo: api/experiments.md
+      - Statistics: api/statistics.md
+      - Comparison and sensitivity: api/analysis.md
+      - Cost and optimisation: api/decisions.md
+      - Validation and introspection: api/validation.md
+      - Visualization: api/visualization.md
+      - Configuration and I/O: api/io.md
