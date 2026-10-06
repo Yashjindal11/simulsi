@@ -6,6 +6,7 @@ simulsi validate TARGET [-p KEY=VALUE ...] [--smoke T]
 simulsi run TARGET [-p KEY=VALUE ...] [--seed N] [--duration T] [--warmup T] [-m METRIC ...] [--trace FILE] [--json]
 simulsi experiment CONFIG [-r N] [-w N] [--seed N] [-o DIR] [--checkpoint FILE] [--adjust METHOD] [-q]
 simulsi analyze RESULTS [-m METRIC ...] [--baseline NAME] [--confidence C] [--precision P] [--adjust METHOD] [--json]
+simulsi warmup TARGET [-p KEY=VALUE ...] [--series KEY] [-r N] [--duration T] [--bins N] [--json]
 simulsi benchmark [--sizes N ...] [--workers N ...] [--replications N] [--no-memory] [--json]
 simulsi visualize TARGET [-o DIR] [-m METRIC ...] [--backend matplotlib|plotly] [--format png|svg|pdf]
 simulsi ui [RESULTS ...] [--model REF ...] [--host H] [--port P] [--no-browser]
@@ -41,6 +42,9 @@ Parameters given with `-p key=value` are parsed as YAML scalars, so
   `experiment.json`, `replications.csv`, `summary.csv` (and Parquet if asked).
 * **analyze** reloads saved results: summary, comparison, provenance, and
   with `--precision 0.05` how many replications each metric needs.
+* **warmup** suggests a warm-up period: it averages a recorded time series
+  (default: the first resource's queue length) over replications and applies
+  MSER-5.
 * **benchmark** measures engine throughput (10k / 100k / 1M events),
   process-based model throughput and parallel experiment speed on your
   machine, with tracemalloc peak memory.

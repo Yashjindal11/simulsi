@@ -11,9 +11,11 @@ else - or by you in six months - and give the same numbers.
    validate`) for each scenario. Then check the model against something
    known: a closed-form case (as the M/M/c tests do with Erlang C), historical
    data, or a hand-worked trace (`trace=True`).
-3. **Choose warm-up and run length.** For steady-state questions, plot
-   time series from a pilot run and pick a warm-up after which the
-   level stops drifting. For terminating systems (a working day, a week of
+3. **Choose warm-up and run length.** For steady-state questions, run
+   `suggest_warmup(model, params)` (or `simulsi warmup model.py`): it
+   averages a time series over replications and applies MSER-5. Check the
+   averaged series too; if the result is flagged unreliable, the run is too
+   short to reach steady state. For terminating systems (a working day, a week of
    operations) the run length is the real horizon and no warm-up is needed.
 4. **Pilot, then size the experiment.** Run ~10 replications and ask
    `result.replication_advice(metric, relative_precision=0.05)` how many you

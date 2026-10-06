@@ -8,17 +8,22 @@ from simulsi.analysis.sensitivity import (
     one_at_a_time,
     sobol_indices,
 )
+from simulsi.analysis.warmup import MserResult, WarmupAdvice, mser, suggest_warmup
 
 __all__ = [
     "Comparison",
     "ComparisonRow",
+    "MserResult",
     "SensitivityResult",
     "SensitivityRow",
+    "WarmupAdvice",
     "compare",
     "compare_samples",
     "correlation_sensitivity",
     "finite_difference",
     "format_table",
+    "mser",
     "one_at_a_time",
     "sobol_indices",
+    "suggest_warmup",
 ]

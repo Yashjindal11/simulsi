@@ -387,6 +387,32 @@ def cmd_ui(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_warmup(args: argparse.Namespace) -> int:
+    from simulsi.analysis.warmup import suggest_warmup
+    from simulsi.config.schema import resolve_model
+
+    m = resolve_model(args.target)
+    adv = suggest_warmup(
+        m,
+        _parse_params(args.param),
+        series=args.series,
+        replications=args.replications,
+        seed=args.seed,
+        duration=args.duration,
+        bins=args.bins,
+    )
+    if args.json:
+        from simulsi.serialization.io import to_jsonable
+
+        _print(json.dumps(to_jsonable(adv.to_dict()), indent=2, allow_nan=False))
+        return EXIT_OK
+    _print(f"series {adv.series!r}: {adv.replications} replications x {adv.duration:g} time units")
+    _print(f"suggested warm-up (MSER-5): {adv.warmup:g}  (model currently uses {m.warmup:g})")
+    if not adv.reliable:
+        _print(f"warning: {adv.note}")
+    return EXIT_OK
+
+
 # -- parser ----------------------------------------------------------------------------
 
 
@@ -471,6 +497,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s.add_argument("--json", action="store_true")
     s.set_defaults(func=cmd_analyze)
+
+    s = sub.add_parser("warmup", help="suggest a warm-up period (MSER-5 over replications)")
+    s.add_argument("target", help="model reference")
+    s.add_argument("--param", "-p", action="append", metavar="KEY=VALUE")
+    s.add_argument("--series", help="time series to analyse (default: first resource queue_length)")
+    s.add_argument("--replications", "-r", type=int, default=5)
+    s.add_argument("--duration", type=float)
+    s.add_argument("--bins", type=int, default=200)
+    s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(func=cmd_warmup)
 
     s = sub.add_parser("benchmark", help="measure engine and experiment throughput on this machine")
     s.add_argument("--sizes", type=int, nargs="+", help="event counts (default 10k 100k 1M)")
