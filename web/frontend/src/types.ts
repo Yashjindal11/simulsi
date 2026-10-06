@@ -1,5 +1,14 @@
 export type Num = number | null;
 
+export interface Job {
+  id: string;
+  status: "running" | "done" | "error";
+  done: number;
+  total: number;
+  result_id: string | null;
+  error: string | null;
+}
+
 export interface ResultIndex {
   id: string;
   source: string;

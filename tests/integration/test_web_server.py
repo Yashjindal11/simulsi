@@ -100,9 +100,18 @@ def test_run_trace_and_upload(server: tuple[str, DashboardState], tmp_path: Path
             "scenarios": [{"name": "baseline", "parameters": {"servers": 2}}],
         },
     )
-    assert code == 201
-    code, detail = get(f"{base}/api/results/{out['id']}")
+    assert code == 202 and out["status"] in ("running", "done") and out["total"] == 2
+    import time
+
+    for _ in range(200):
+        code, job = get(f"{base}/api/jobs/{out['id']}")
+        if job["status"] != "running":
+            break
+        time.sleep(0.05)
+    assert job["status"] == "done" and job["done"] == 2, job
+    code, detail = get(f"{base}/api/results/{job['result_id']}")
     assert detail["metadata"]["replications"] == 2
+    assert get(f"{base}/api/jobs/j999")[0] == 404
     code, trace = post(
         f"{base}/api/trace",
         {"model": "builtin:mmc", "parameters": {"servers": 2}, "seed": 1, "duration": 100},

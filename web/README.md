@@ -32,7 +32,8 @@ runtime dependencies are React and React DOM.
 | GET | `/api/results/{id}/metric?metric=&scenario=` | per-replication values, summary, convergence |
 | GET | `/api/results/{id}/compare?baseline=&metrics=` | differences vs baseline with CIs |
 | GET | `/api/results/{id}/export.json` / `export.csv` | downloads |
-| POST | `/api/run` | run an experiment `{model, scenarios, replications, seed, duration?}` |
+| POST | `/api/run` | start an experiment in the background `{model, scenarios, replications, seed, duration?}`; returns a job |
+| GET | `/api/jobs/{id}` | job progress `{status, done, total, result_id, error}` |
 | POST | `/api/trace` | one traced run `{model, parameters, seed, duration?}` |
 | POST | `/api/results` | register an `experiment.json` loaded in the browser |
 

@@ -1,4 +1,4 @@
-import type { CompareRow, MetricDetail, ModelInfo, ResultDetail, ResultIndex, Trace } from "./types";
+import type { CompareRow, Job, MetricDetail, ModelInfo, ResultDetail, ResultIndex, Trace } from "./types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init);
@@ -28,7 +28,8 @@ export const api = {
     request<CompareRow[]>(
       `/api/results/${encodeURIComponent(id)}/compare?baseline=${encodeURIComponent(baseline)}&metrics=${encodeURIComponent(metrics.join(","))}&confidence=${confidence}`,
     ),
-  run: (body: unknown) => post<{ id: string }>("/api/run", body),
+  run: (body: unknown) => post<Job>("/api/run", body),
+  job: (id: string) => request<Job>(`/api/jobs/${encodeURIComponent(id)}`),
   trace: (body: unknown) => post<Trace>("/api/trace", body),
   upload: (experiment: unknown) => post<{ id: string }>("/api/results", experiment),
   exportUrl: (id: string, kind: "json" | "csv") => `/api/results/${encodeURIComponent(id)}/export.${kind}`,

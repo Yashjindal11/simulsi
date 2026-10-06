@@ -53,8 +53,37 @@ class DashboardState:
         self.models: dict[str, Model] = {f"builtin:{k}": v for k, v in BUILTIN_MODELS.items()}
         self.models.update(models or {})
         self.results: dict[str, tuple[ExperimentResult, str]] = {}
+        self.jobs: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
         self._counter = 0
+        self._job_counter = 0
+
+    def start_job(self, exp: Experiment, source: str) -> str:
+        """Run ``exp`` in a background thread; poll :meth:`job` for progress."""
+        with self._lock:
+            self._job_counter += 1
+            jid = f"j{self._job_counter}"
+            total = len(exp.scenarios) * exp.replications
+            self.jobs[jid] = {"id": jid, "status": "running", "done": 0, "total": total,
+                              "result_id": None, "error": None}
+
+        def progress(done: int, total: int) -> None:
+            self.jobs[jid].update(done=done, total=total)
+
+        def work() -> None:
+            try:
+                rid = self.add_result(exp.run(progress=progress), source)
+                self.jobs[jid].update(status="done", result_id=rid)
+            except Exception as exc:  # reported to the client, not raised in the thread
+                self.jobs[jid].update(status="error", error=f"{type(exc).__name__}: {exc}")
+
+        threading.Thread(target=work, name=f"simulsi-{jid}", daemon=True).start()
+        return jid
+
+    def job(self, jid: str) -> dict[str, Any]:
+        if jid not in self.jobs:
+            raise KeyError(f"no job {jid!r}")
+        return dict(self.jobs[jid])
 
     def add_result(self, result: ExperimentResult, source: str) -> str:
         with self._lock:
@@ -134,7 +163,8 @@ def run_trace(model: Model, params: Mapping[str, Any], seed: int, duration: floa
     }
 
 
-def run_experiment(state: DashboardState, body: Mapping[str, Any]) -> str:
+def build_experiment(state: DashboardState, body: Mapping[str, Any]) -> Experiment:
+    """Validate a run request and turn it into an experiment (raises on bad input)."""
     model = state.model(str(body.get("model", "")))
     raw = body.get("scenarios") or [{"name": "baseline", "parameters": {}}]
     if not isinstance(raw, list) or len(raw) > 50:
@@ -150,7 +180,10 @@ def run_experiment(state: DashboardState, body: Mapping[str, Any]) -> str:
         model = model.with_options(duration=float(duration), warmup=min(model.warmup, float(duration) / 2))
     exp = Experiment(model, scenarios, replications=reps, seed=int(body.get("seed", 0)),
                      workers=1, on_error="record")
-    return state.add_result(exp.run(), f"dashboard run ({model.name})")
+    issues = exp.validate()
+    if issues:
+        raise ConfigError("; ".join(issues))
+    return exp
 
 
 # -- HTTP handler ------------------------------------------------------------------------
@@ -238,6 +271,8 @@ def make_handler(state: DashboardState, allowed_hosts: set[str]) -> type[BaseHTT
                     self._json([{"id": k, **m.describe()} for k, m in sorted(state.models.items())])
                 elif parts == ["results"]:
                     self._json(result_index(state))
+                elif len(parts) == 2 and parts[0] == "jobs":
+                    self._json(state.job(parts[1]))
                 elif len(parts) == 2 and parts[0] == "results":
                     self._json(result_detail(state.get(parts[1]), float(q.get("confidence", 0.95))))
                 elif len(parts) == 3 and parts[0] == "results" and parts[2] == "metric":
@@ -266,8 +301,9 @@ def make_handler(state: DashboardState, allowed_hosts: set[str]) -> type[BaseHTT
 
         def _api_post(self, path: str, body: dict[str, Any]) -> None:
             if path == "/api/run":
-                rid = run_experiment(state, body)
-                self._json({"id": rid}, HTTPStatus.CREATED)
+                exp = build_experiment(state, body)
+                jid = state.start_job(exp, f"dashboard run ({exp.model.name})")
+                self._json(state.job(jid), HTTPStatus.ACCEPTED)
             elif path == "/api/trace":
                 model = state.model(str(body.get("model", "")))
                 duration = body.get("duration")

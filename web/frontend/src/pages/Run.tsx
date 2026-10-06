@@ -77,6 +77,7 @@ export function RunView({ onDone }: { onDone: (id: string) => void }) {
   const [duration, setDuration] = useState("");
   const [busy, setBusy] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     if (models && !modelId && models.length) setModelId(models[0].id);
@@ -90,18 +91,26 @@ export function RunView({ onDone }: { onDone: (id: string) => void }) {
     setBusy(true);
     setRunError(null);
     try {
-      const { id } = await api.run({
+      let job = await api.run({
         model: model.id,
         replications: Number(replications),
         seed: Number(seed),
         duration: duration.trim() ? Number(duration) : undefined,
         scenarios: scenarios.map((s) => ({ name: s.name, parameters: toParams(model, s.values) })),
       });
-      onDone(id);
+      setProgress([job.done, job.total]);
+      while (job.status === "running") {
+        await new Promise((r) => setTimeout(r, 400));
+        job = await api.job(job.id);
+        setProgress([job.done, job.total]);
+      }
+      if (job.status === "error") throw new Error(job.error ?? "run failed");
+      if (job.result_id) onDone(job.result_id);
     } catch (e) {
       setRunError((e as Error).message);
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -145,6 +154,14 @@ export function RunView({ onDone }: { onDone: (id: string) => void }) {
         <label className="flex flex-col gap-1"><span className="label">Duration (optional)</span><input className="input w-36" value={duration} placeholder={fmt(model?.duration)} onChange={(e) => setDuration(e.target.value)} /></label>
         <button className="btn" disabled={busy || !model} onClick={() => void submit()}>{busy ? "Running…" : "Run experiment"}</button>
       </div>
+      {progress && (
+        <div className="max-w-md space-y-1">
+          <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+            <div className="h-full bg-indigo-600 transition-all" style={{ width: `${progress[1] ? (100 * progress[0]) / progress[1] : 0}%` }} />
+          </div>
+          <p className="text-xs text-slate-500">{progress[0]} of {progress[1]} runs</p>
+        </div>
+      )}
       {runError && <Loading error={runError} />}
     </div>
   );
