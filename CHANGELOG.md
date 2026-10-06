@@ -6,6 +6,28 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Per-run warm-up override (`Model.simulate(warmup=)`, `simulsi run --warmup`);
+  the model warm-up is scaled proportionally for shorter runs, with a note.
+- Dashboard runs experiments as background jobs with a progress bar
+  (`POST /api/run` returns 202, `GET /api/jobs/{id}`).
+- Multiple-comparison adjustment in `compare(adjust="bonferroni"|"holm"|"bh")`,
+  the CLI (`--adjust`), configs and the dashboard.
+- Warm-up detection with MSER-5 (`simulsi.analysis.mser`, `suggest_warmup`,
+  `simulsi warmup`).
+- Sequential experiments: `Experiment.run_until(relative_precision, ...)` and
+  `simulsi experiment --until-precision`.
+- Antithetic variates (`Experiment(antithetic=True)`, inverse-transform
+  sampling modes on `RandomStream`) and control variates
+  (`ExperimentResult.control_variate`, `statistics.control_variate`).
+- Documentation site with API reference (mkdocs-material, GitHub Pages).
+
+### Changed
+
+- Worker process pools are reused across experiments in the same process
+  (`shutdown_workers()` to release them).
+
 ## [0.2.0] - 2026-10-02
 
 ### Added

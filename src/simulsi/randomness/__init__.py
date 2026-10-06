@@ -20,7 +20,7 @@ from simulsi.randomness.distributions import (
     is_distribution_spec,
     registered_distributions,
 )
-from simulsi.randomness.stream import RandomStream, derive_seed, fresh_seed
+from simulsi.randomness.stream import RandomStream, SamplingMode, derive_seed, fresh_seed
 
 __all__ = [
     "Binomial",
@@ -36,6 +36,7 @@ __all__ = [
     "Normal",
     "Poisson",
     "RandomStream",
+    "SamplingMode",
     "Triangular",
     "Uniform",
     "as_distribution",

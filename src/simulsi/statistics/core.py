@@ -11,7 +11,7 @@ sampling error of the reported estimates is quantified.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
@@ -454,3 +454,90 @@ def adjust_p_values(p_values: Sequence[float], method: AdjustMethod = "holm") ->
         raise ValueError(f"unknown adjustment {method!r}; use none, bonferroni, holm or bh")
     out[ok] = adj
     return out.tolist()
+
+
+@dataclass(frozen=True)
+class ControlVariateEstimate:
+    """Mean of ``y`` adjusted with control variates, and how much variance that removed."""
+
+    mean: float
+    ci_low: float
+    ci_high: float
+    raw_mean: float
+    raw_ci_low: float
+    raw_ci_high: float
+    coefficients: dict[str, float]
+    n: int
+    confidence: float
+
+    @property
+    def half_width(self) -> float:
+        return (self.ci_high - self.ci_low) / 2
+
+    @property
+    def variance_reduction(self) -> float:
+        """``1 - (CV half-width / raw half-width)^2``: share of estimator variance removed."""
+        raw = (self.raw_ci_high - self.raw_ci_low) / 2
+        return 1 - (self.half_width / raw) ** 2 if raw > 0 else math.nan
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["half_width"] = self.half_width
+        d["variance_reduction"] = self.variance_reduction
+        return d
+
+
+def control_variate(
+    y: Sequence[float] | FloatArray,
+    controls: Mapping[str, Sequence[float] | FloatArray],
+    means: Mapping[str, float],
+    *,
+    confidence: float = 0.95,
+) -> ControlVariateEstimate:
+    """Control-variate estimator of ``E[y]`` (Law 2015, sec. 11.4; regression form).
+
+    Each control ``x_k`` is an output whose expectation ``means[k]`` is known
+    exactly (e.g. the average sampled service time). Regressing ``y`` on
+    ``x - mean`` gives an unbiased intercept (the adjusted mean) with a
+    standard error from the regression residuals, using ``n - 1 - q`` degrees
+    of freedom for ``q`` controls. It helps only when the controls are
+    correlated with ``y``; with few replications the estimated coefficients
+    cost some precision, so keep ``q`` small.
+    """
+    _check_conf(confidence)
+    names = list(controls)
+    if not names:
+        raise ValueError("need at least one control")
+    missing = [k for k in names if k not in means]
+    if missing:
+        raise ValueError(f"no known mean for control(s) {missing}")
+    yv = np.asarray(y, dtype=float)
+    xs = np.column_stack([np.asarray(controls[k], dtype=float) - means[k] for k in names])
+    ok = ~(np.isnan(yv) | np.isnan(xs).any(axis=1))
+    yv, xs = yv[ok], xs[ok]
+    n, q = len(yv), len(names)
+    raw_lo, raw_hi = mean_ci(yv, confidence)
+    raw_mean = float(yv.mean()) if n else math.nan
+    if n < q + 3:
+        nan = math.nan
+        return ControlVariateEstimate(nan, nan, nan, raw_mean, raw_lo, raw_hi, {}, n, confidence)
+    design = np.column_stack([np.ones(n), xs])
+    coef, *_ = np.linalg.lstsq(design, yv, rcond=None)
+    resid = yv - design @ coef
+    dof = n - 1 - q
+    s2 = float(resid @ resid) / dof
+    cov = s2 * np.linalg.pinv(design.T @ design)
+    se = math.sqrt(max(0.0, float(cov[0, 0])))
+    t = float(_st.t.ppf((1 + confidence) / 2, dof))
+    est = float(coef[0])
+    return ControlVariateEstimate(
+        est,
+        est - t * se,
+        est + t * se,
+        raw_mean,
+        raw_lo,
+        raw_hi,
+        {k: float(c) for k, c in zip(names, coef[1:], strict=True)},
+        n,
+        confidence,
+    )

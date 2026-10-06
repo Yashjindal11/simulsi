@@ -28,7 +28,7 @@ from simulsi.processes.process import (
 )
 from simulsi.queues.discipline import Discipline
 from simulsi.queues.queue import Queue
-from simulsi.randomness.stream import RandomStream
+from simulsi.randomness.stream import RandomStream, SamplingMode
 from simulsi.resources.resource import Request, Resource
 
 _SCHEDULED = EventStatus.SCHEDULED
@@ -98,10 +98,11 @@ class Simulation:
         keep_entity_history: bool = True,
         keep_values: bool = True,
         record_series: bool = True,
+        sampling: SamplingMode = "native",
     ) -> None:
         self.name = name
         self.clock = Clock(start, epoch=epoch, unit=time_unit)
-        self.rng = RandomStream(seed)
+        self.rng = RandomStream(seed, mode=sampling)
         self.seed = self.rng.seed
         self.event_queue = EventQueue()
         self.log: EventLog | None = EventLog(max_log_records) if trace else None

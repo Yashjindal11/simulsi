@@ -1,6 +1,7 @@
 from simulsi.statistics.core import (
     AdjustMethod,
     BatchMeans,
+    ControlVariateEstimate,
     Convergence,
     Difference,
     ReplicationAdvice,
@@ -8,6 +9,7 @@ from simulsi.statistics.core import (
     adjust_p_values,
     batch_means,
     bootstrap_ci,
+    control_variate,
     convergence,
     lag1_autocorrelation,
     mean_ci,
@@ -22,6 +24,7 @@ from simulsi.statistics.core import (
 __all__ = [
     "AdjustMethod",
     "BatchMeans",
+    "ControlVariateEstimate",
     "Convergence",
     "Difference",
     "ReplicationAdvice",
@@ -29,6 +32,7 @@ __all__ = [
     "adjust_p_values",
     "batch_means",
     "bootstrap_ci",
+    "control_variate",
     "convergence",
     "lag1_autocorrelation",
     "mean_ci",

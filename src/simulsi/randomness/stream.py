@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import zlib
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast
 
 import numpy as np
 
@@ -43,24 +43,50 @@ def fresh_seed() -> int:
     return int(np.random.SeedSequence().generate_state(1, dtype=np.uint64)[0] >> 1)
 
 
+SamplingMode = Literal["native", "inverse", "antithetic"]
+
+
 class RandomStream:
-    """A reproducible stream of random numbers (PCG64 under the hood)."""
+    """A reproducible stream of random numbers (PCG64 under the hood).
 
-    __slots__ = ("_children", "generator", "name", "seed")
+    ``mode`` selects how variates are produced: ``"native"`` (NumPy's fast
+    samplers, the default), ``"inverse"`` (one uniform per variate via the
+    inverse CDF) or ``"antithetic"`` (the same, using ``1 - U``). An
+    ``inverse`` run and an ``antithetic`` run with the same seed form an
+    antithetic pair. Sub-streams inherit the mode.
+    """
 
-    def __init__(self, seed: int | None = None, *, name: str = "root") -> None:
+    __slots__ = ("_children", "generator", "mode", "name", "seed")
+
+    def __init__(
+        self, seed: int | None = None, *, name: str = "root", mode: SamplingMode = "native"
+    ) -> None:
         self.seed = fresh_seed() if seed is None else int(seed)
         if self.seed < 0:
             raise ValueError("seed must be non-negative")
+        if mode not in ("native", "inverse", "antithetic"):
+            raise ValueError(f"unknown sampling mode {mode!r}")
         self.name = name
-        self.generator = np.random.Generator(np.random.PCG64(self.seed))
+        self.mode: SamplingMode = mode
+        base = np.random.Generator(np.random.PCG64(self.seed))
+        if mode == "native":
+            self.generator: np.random.Generator = base
+        else:
+            from simulsi.randomness.inverse import InverseTransformGenerator
+
+            # duck-typed stand-in exposing the Generator methods SimulSI uses
+            self.generator = cast(
+                np.random.Generator, InverseTransformGenerator(base, flip=mode == "antithetic")
+            )
         self._children: dict[str, RandomStream] = {}
 
     def stream(self, name: str) -> RandomStream:
         """Return the named sub-stream (created on first use, then cached)."""
         child = self._children.get(name)
         if child is None:
-            child = RandomStream(derive_seed(self.seed, name), name=f"{self.name}/{name}")
+            child = RandomStream(
+                derive_seed(self.seed, name), name=f"{self.name}/{name}", mode=self.mode
+            )
             self._children[name] = child
         return child
 
@@ -114,4 +140,4 @@ class RandomStream:
         return distribution.sample(self)
 
     def __repr__(self) -> str:
-        return f"RandomStream(name={self.name!r}, seed={self.seed})"
+        return f"RandomStream(name={self.name!r}, seed={self.seed}, mode={self.mode!r})"

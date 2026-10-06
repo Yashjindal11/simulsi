@@ -129,6 +129,52 @@ All intervals assume independent replications (true for SimulSI
 replications) and quantify *sampling error only*. They say nothing about
 whether the model represents the real system.
 
+## Variance reduction
+
+Two standard techniques buy narrower intervals for the same number of runs.
+
+**Antithetic variates** run replications in pairs: the second run of each
+pair draws `1 - u` wherever the first drew `u`, so a run with unusually short
+inter-arrival times is paired with one with unusually long ones.
+
+```python
+from simulsi import Experiment, Scenario
+from simulsi.models import mmc
+
+exp = Experiment(mmc.with_options(duration=500, warmup=50),
+                 Scenario("baseline", {"arrival_rate": 0.7}),
+                 replications=20, seed=5, antithetic=True)
+anti = exp.run()
+print(anti.summary(["resource.server.utilization"])[0]["half_width"])
+print(len(anti.values("resource.server.utilization")))      # 10 pair means
+print(len(anti.raw_values("resource.server.utilization")))  # 20 runs
+```
+
+* `replications` must be even. Pair `k` shares seed
+  `replication_seed(scenario, k)`; summaries, comparisons and `run_until` use
+  the *pair means* as the independent observations.
+* Antithetic runs sample by inversion (`RandomStream(seed, mode="inverse")`
+  and `"antithetic"`), so each uniform maps to exactly one variate. Draws
+  differ from native runs with the same seed, but the distributions are the
+  same.
+* It helps when outputs move monotonically with the inputs (utilization,
+  throughput, mean waits); it can hurt for non-monotone responses. Check the
+  pair correlation with `raw_values`.
+
+**Control variates** adjust an output using a quantity whose true mean is
+known, such as the observed mean service time:
+
+```py
+est = result.control_variate("resource.server.wait.mean",
+                             {"service.mean": 1.0})    # true mean service time
+print(est.mean, est.ci_low, est.ci_high, est.variance_reduction)
+```
+
+The estimator regresses the output on the controls across replications
+(`simulsi.statistics.control_variate`), and the interval accounts for the
+estimated coefficients (n - q - 1 degrees of freedom). The control must be
+recorded by the model, for example with `sim.metrics.observe("service", s)`.
+
 ## Comparing scenarios
 
 ```python

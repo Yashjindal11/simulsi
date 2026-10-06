@@ -88,6 +88,7 @@ class ExperimentMetadata:
     warmup: float = 0.0
     format_version: int = FORMAT_VERSION
     stopping: dict[str, Any] | None = None
+    antithetic: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -108,10 +109,12 @@ def _run_one(
     replication: int,
     seed: int,
     raise_errors: bool,
+    sampling: str = "native",
 ) -> ReplicationRecord:
     t0 = time.perf_counter()
     try:
-        result = model.simulate(params, seed=seed)
+        extra: dict[str, Any] = {} if sampling == "native" else {"sampling": sampling}
+        result = model.simulate(params, seed=seed, **extra)
     except Exception as exc:
         if raise_errors:
             raise
@@ -164,6 +167,7 @@ class Experiment:
         name: str | None = None,
         common_random_numbers: bool = True,
         on_error: Literal["raise", "record"] = "raise",
+        antithetic: bool = False,
     ) -> None:
         self.model = model
         if scenarios is None:
@@ -178,6 +182,7 @@ class Experiment:
         self.name = name or model.name
         self.common_random_numbers = common_random_numbers
         self.on_error = on_error
+        self.antithetic = antithetic
 
     def grid(
         self, axes: Mapping[str, Sequence[Any]], base: Scenario | None = None
@@ -201,6 +206,8 @@ class Experiment:
             issues += [
                 f"scenario {s.name!r}: {i}" for i in self.model.check_parameters(s.parameters)
             ]
+        if self.antithetic and self.replications % 2:
+            issues.append("antithetic experiments need an even number of replications (pairs)")
         if self.replications < 1:
             issues.append("replications must be >= 1")
         if self.workers < 1:
@@ -254,9 +261,10 @@ class Experiment:
             workers=self.workers,
             duration=self.model.duration,
             warmup=self.model.warmup,
+            antithetic=self.antithetic,
         )
         tasks = [
-            (s.name, r, self.replication_seed(s.name, r))
+            (s.name, r, self.replication_seed(s.name, r // 2 if self.antithetic else r))
             for s in self.scenarios
             for r in range(self.replications)
         ]
@@ -281,7 +289,8 @@ class Experiment:
                 progress(completed, len(tasks))
 
         args = [
-            (self.model, name, params_by_scenario[name], r, s, raise_errors) for name, r, s in todo
+            (self.model, name, params_by_scenario[name], r, s, raise_errors, self._sampling(r))
+            for name, r, s in todo
         ]
         if self.workers == 1 or len(args) <= 1:
             for a in args:
@@ -298,6 +307,11 @@ class Experiment:
         meta.runtime = time.perf_counter() - t0
         records = [done[(n, r)] for n, r, _ in tasks]
         return ExperimentResult(meta, records)
+
+    def _sampling(self, replication: int) -> str:
+        if not self.antithetic:
+            return "native"
+        return "inverse" if replication % 2 == 0 else "antithetic"
 
     def run_until(
         self,
@@ -322,7 +336,9 @@ class Experiment:
 
         if not metrics:
             raise ConfigError("run_until needs at least one metric")
-        n = max(3, self.replications)
+        unit = 2 if self.antithetic else 1  # replications come in antithetic pairs
+        n = max(3 * unit, self.replications)
+        n += n % unit
         if n > max_replications:
             raise ConfigError("max_replications is smaller than the initial replications")
         cache: dict[tuple[str, int], ReplicationRecord] = {}
@@ -337,10 +353,10 @@ class Experiment:
                     adv = required_replications(res.values(m, sc), relative_precision, confidence)
                     if not adv.sufficient:
                         unmet.append(f"{sc}/{m}")
-                        needed = max(needed, adv.required_n or max_replications)
-            if not unmet or n >= max_replications:
+                        needed = max(needed, unit * (adv.required_n or max_replications))
+            if not unmet or n >= max_replications - max_replications % unit:
                 break
-            n = min(max_replications, max(needed, n + 1))
+            n = min(max_replications - max_replications % unit, max(needed, n + unit))
         res.metadata.stopping = {
             "rule": "relative_precision",
             "relative_precision": relative_precision,
@@ -402,6 +418,7 @@ class _Checkpoint:
             "model_version": meta.model_version,
             "seed": meta.seed,
             "crn": meta.common_random_numbers,
+            "antithetic": meta.antithetic,
             "scenarios": to_jsonable(meta.scenarios),
         }
 
@@ -470,7 +487,12 @@ class ExperimentResult:
     def values(
         self, metric: str, scenario: str | None = None
     ) -> np.ndarray[Any, np.dtype[np.float64]]:
-        """Per-replication values of ``metric`` (ordered by replication; NaN if missing)."""
+        """Independent observations of ``metric``, ordered by replication (NaN if missing).
+
+        For antithetic experiments each value is the mean of one antithetic
+        pair (the pair means are the independent units); use :meth:`raw_values`
+        for one value per run.
+        """
         sc = scenario if scenario is not None else self.scenarios[0]
         recs = sorted(
             (r for r in self.records if r.scenario == sc and r.status == "ok"),
@@ -478,6 +500,24 @@ class ExperimentResult:
         )
         if not recs and sc not in self.scenarios:
             raise KeyError(f"no scenario {sc!r}; have {self.scenarios}")
+        raw = {r.replication: r.metrics.get(metric, math.nan) for r in recs}
+        if not self.metadata.antithetic:
+            return np.asarray([raw[k] for k in sorted(raw)], dtype=float)
+        pairs = sorted({k // 2 for k in raw})
+        return np.asarray(
+            [(raw[2 * p] + raw[2 * p + 1]) / 2 for p in pairs if 2 * p in raw and 2 * p + 1 in raw],
+            dtype=float,
+        )
+
+    def raw_values(
+        self, metric: str, scenario: str | None = None
+    ) -> np.ndarray[Any, np.dtype[np.float64]]:
+        """One value per successful run, ordered by replication (no antithetic pairing)."""
+        sc = scenario if scenario is not None else self.scenarios[0]
+        recs = sorted(
+            (r for r in self.records if r.scenario == sc and r.status == "ok"),
+            key=lambda r: r.replication,
+        )
         return np.asarray([r.metrics.get(metric, math.nan) for r in recs], dtype=float)
 
     def seeds(self, scenario: str) -> list[int]:
@@ -529,6 +569,29 @@ class ExperimentResult:
         confidence: float = 0.95,
     ) -> ReplicationAdvice:
         return required_replications(self.values(metric, scenario), relative_precision, confidence)
+
+    def control_variate(
+        self,
+        metric: str,
+        controls: Mapping[str, float],
+        scenario: str | None = None,
+        *,
+        confidence: float = 0.95,
+    ) -> Any:
+        """Variance-reduced estimate of ``metric`` using metrics with known means.
+
+        ``controls`` maps control metrics to their true expectations, e.g. the
+        sampled mean service time and ``1 / service_rate``.
+        """
+        from simulsi.statistics.core import control_variate
+
+        sc = scenario if scenario is not None else self.scenarios[0]
+        return control_variate(
+            self.values(metric, sc),
+            {k: self.values(k, sc) for k in controls},
+            controls,
+            confidence=confidence,
+        )
 
     def compare(
         self,

@@ -1,0 +1,1923 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A general-purpose, reproducible simulation and scenario experimentation framework for Python.">
+      
+      
+      
+        <link rel="canonical" href="https://yashjindal11.github.io/simulsi/concepts/">
+      
+      
+        <link rel="prev" href="../getting-started/">
+      
+      
+        <link rel="next" href="../experiments/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Core concepts - SimulSI</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#core-concepts" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="SimulSI" class="md-header__button md-logo" aria-label="SimulSI" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            SimulSI
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Core concepts
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Yashjindal11/simulsi" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Yashjindal11/simulsi
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="SimulSI" class="md-nav__button md-logo" aria-label="SimulSI" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    SimulSI
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Yashjindal11/simulsi" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Yashjindal11/simulsi
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core concepts
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#simulation-and-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Simulation and time
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Events
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#processes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Processes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resources
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Resources">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#preemption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preemption
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#queues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Queues
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#randomness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Randomness
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#failures-and-disruptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Failures and disruptions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-snapshots-event-logs-and-graphs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State snapshots, event logs and graphs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model validation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments and analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization and dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI and configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Background
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extending/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extending SimulSI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../research/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/simulation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Simulation and clock
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes and disruptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resources and queues
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/randomness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Randomness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models and scenarios
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments and Monte Carlo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comparison and sensitivity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cost and optimisation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation and introspection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/io/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration and I/O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#simulation-and-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Simulation and time
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Events
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#processes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Processes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resources
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Resources">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#preemption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preemption
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#queues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Queues
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#randomness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Randomness
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#failures-and-disruptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Failures and disruptions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-snapshots-event-logs-and-graphs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State snapshots, event logs and graphs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model validation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="core-concepts">Core concepts<a class="headerlink" href="#core-concepts" title="Permanent link">&para;</a></h1>
+<div class="highlight"><pre><span></span><code>Simulation
+ ├── Clock            current time (float), optional calendar anchoring
+ ├── Event queue      binary heap ordered by (time, priority, scheduling order)
+ ├── Events           things that happen at an instant (callbacks or Event subclasses)
+ ├── Processes        generator functions that wait for time, resources, items, signals
+ ├── Entities         customers, jobs, patients, aircraft ... with state and history
+ ├── Resources        pools of capacity (servers, machines, gates) with waiting lines
+ ├── Queues           buffers with disciplines and optional capacity
+ ├── Randomness       seeded, named random streams + distributions
+ ├── Metrics          tallies, time-weighted gauges, counters, histograms
+ └── Event log        optional structured trace (JSON / CSV / Parquet)
+</code></pre></div>
+<h2 id="simulation-and-time">Simulation and time<a class="headerlink" href="#simulation-and-time" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">simulsi</span><span class="w"> </span><span class="kn">import</span> <span class="n">Simulation</span>
+
+<span class="n">sim</span> <span class="o">=</span> <span class="n">Simulation</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>                    <span class="c1"># time is a float in abstract units</span>
+<span class="n">cal</span> <span class="o">=</span> <span class="n">Simulation</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">epoch</span><span class="o">=</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">time_unit</span><span class="o">=</span><span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+<span class="n">cal</span><span class="o">.</span><span class="n">schedule</span><span class="p">(</span><span class="n">time</span><span class="o">=</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span> <span class="n">event_type</span><span class="o">=</span><span class="s2">"shift_change"</span><span class="p">)</span>
+<span class="n">cal</span><span class="o">.</span><span class="n">schedule</span><span class="p">(</span><span class="n">delay</span><span class="o">=</span><span class="n">timedelta</span><span class="p">(</span><span class="n">hours</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span> <span class="n">event_type</span><span class="o">=</span><span class="s2">"inspection"</span><span class="p">)</span>
+<span class="n">cal</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="n">timedelta</span><span class="p">(</span><span class="n">hours</span><span class="o">=</span><span class="mi">3</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">cal</span><span class="o">.</span><span class="n">now</span><span class="p">,</span> <span class="n">cal</span><span class="o">.</span><span class="n">now_datetime</span><span class="p">)</span>            <span class="c1"># 180.0 2026-03-01 09:00:00</span>
+</code></pre></div>
+<p><code>run(until=T)</code> executes every event with timestamp <code>&lt;= T</code> and leaves the
+clock exactly at <code>T</code>, even if nothing happened near the end; <code>run()</code> without
+<code>until</code> stops when no events remain; <code>sim.stop()</code> ends a run after the
+current event. Runs can be resumed by calling <code>run</code> again with a later <code>until</code>.</p>
+<h2 id="events">Events<a class="headerlink" href="#events" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">simulsi</span><span class="w"> </span><span class="kn">import</span> <span class="n">Event</span><span class="p">,</span> <span class="n">Priority</span><span class="p">,</span> <span class="n">Simulation</span>
+
+<span class="n">sim</span> <span class="o">=</span> <span class="n">Simulation</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">log</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">schedule</span><span class="p">(</span><span class="n">time</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">event_type</span><span class="o">=</span><span class="s2">"ping"</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">s</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span> <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s2">"ping"</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">now</span><span class="p">)))</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Arrival</span><span class="p">(</span><span class="n">Event</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s2">"arrival"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"n"</span><span class="p">:</span> <span class="n">n</span><span class="p">})</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sim</span><span class="p">):</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s2">"arrival"</span><span class="p">,</span> <span class="n">sim</span><span class="o">.</span><span class="n">now</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">payload</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">payload</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">sim</span><span class="o">.</span><span class="n">schedule</span><span class="p">(</span><span class="n">Arrival</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">payload</span><span class="p">[</span><span class="s2">"n"</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="n">delay</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+
+
+<span class="n">first</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">schedule</span><span class="p">(</span><span class="n">Arrival</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">time</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">urgent</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">schedule</span><span class="p">(</span><span class="n">time</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">event_type</span><span class="o">=</span><span class="s2">"urgent"</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="n">Priority</span><span class="o">.</span><span class="n">URGENT</span><span class="p">,</span>
+                      <span class="n">callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">s</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span> <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s2">"urgent"</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">now</span><span class="p">)))</span>
+<span class="n">late</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">schedule</span><span class="p">(</span><span class="n">time</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">event_type</span><span class="o">=</span><span class="s2">"cancel-me"</span><span class="p">)</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">cancel</span><span class="p">(</span><span class="n">late</span><span class="p">)</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">log</span><span class="p">)</span>   <span class="c1"># urgent runs before ping at t=5</span>
+</code></pre></div>
+<p>Every event has <code>event_id</code>, <code>timestamp</code>, <code>priority</code>, <code>event_type</code>, <code>payload</code>,
+<code>callback</code> and <code>status</code> (<code>created</code>, <code>scheduled</code>, <code>cancelled</code>, <code>executed</code>).
+<code>reschedule(event, time=...)</code> moves a pending (or cancelled) event. Ordering is
+fully deterministic: time, then priority (lower first), then scheduling order.</p>
+<h2 id="processes">Processes<a class="headerlink" href="#processes" title="Permanent link">&para;</a></h2>
+<p>A process is a generator. What it yields decides what it waits for:</p>
+<table>
+<thead>
+<tr>
+<th>yield</th>
+<th>waits for</th>
+<th>resumes with</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a number / <code>timedelta</code></td>
+<td>that much time</td>
+<td><code>None</code></td>
+</tr>
+<tr>
+<td><code>sim.timeout(d, value)</code></td>
+<td><code>d</code> time units</td>
+<td><code>value</code></td>
+</tr>
+<tr>
+<td><code>sim.request(resource)</code></td>
+<td>a unit of the resource</td>
+<td>the <code>Request</code></td>
+</tr>
+<tr>
+<td><code>queue.get()</code> / <code>queue.put(x)</code></td>
+<td>an item / free space</td>
+<td>the item / <code>None</code></td>
+</tr>
+<tr>
+<td><code>sim.signal()</code></td>
+<td>someone calling <code>signal.succeed(v)</code></td>
+<td><code>v</code></td>
+</tr>
+<tr>
+<td><code>sim.all_of(a, b)</code> / <code>sim.any_of(a, b)</code></td>
+<td>all / any of them</td>
+<td><code>{waitable: value}</code></td>
+</tr>
+<tr>
+<td>another <code>Process</code></td>
+<td>its completion</td>
+<td>its return value</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">simulsi</span><span class="w"> </span><span class="kn">import</span> <span class="n">Interrupt</span><span class="p">,</span> <span class="n">Simulation</span>
+
+<span class="n">sim</span> <span class="o">=</span> <span class="n">Simulation</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">machine</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">resource</span><span class="p">(</span><span class="s2">"machine"</span><span class="p">,</span> <span class="n">capacity</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">job</span><span class="p">(</span><span class="n">sim</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield from</span> <span class="n">sim</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="n">machine</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>       <span class="c1"># acquire, hold 10, release</span>
+    <span class="k">except</span> <span class="n">Interrupt</span> <span class="k">as</span> <span class="n">stop</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"t=</span><span class="si">{</span><span class="n">sim</span><span class="o">.</span><span class="n">now</span><span class="si">}</span><span class="s2">: interrupted (</span><span class="si">{</span><span class="n">stop</span><span class="o">.</span><span class="n">cause</span><span class="si">}</span><span class="s2">); unit released automatically"</span><span class="p">)</span>
+
+
+<span class="n">p</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">job</span><span class="p">(</span><span class="n">sim</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s2">"job-1"</span><span class="p">)</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">call_at</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">interrupt</span><span class="p">(</span><span class="s2">"power cut"</span><span class="p">),</span> <span class="n">time</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+<p>If a process raises and nobody waits on it, the exception propagates out of
+<code>sim.run()</code> - model bugs are never swallowed.</p>
+<h2 id="entities">Entities<a class="headerlink" href="#entities" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">simulsi</span><span class="w"> </span><span class="kn">import</span> <span class="n">Simulation</span>
+
+<span class="n">sim</span> <span class="o">=</span> <span class="n">Simulation</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">c</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">entity</span><span class="p">(</span><span class="s2">"customer"</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">service_type</span><span class="o">=</span><span class="s2">"premium"</span><span class="p">)</span>   <span class="c1"># id "customer-1"</span>
+<span class="n">c</span><span class="o">.</span><span class="n">set_state</span><span class="p">(</span><span class="s2">"waiting"</span><span class="p">)</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">c</span><span class="o">.</span><span class="n">set_state</span><span class="p">(</span><span class="s2">"served"</span><span class="p">,</span> <span class="n">by</span><span class="o">=</span><span class="s2">"teller-2"</span><span class="p">)</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">dispose</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>                         <span class="c1"># records time in system</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">c</span><span class="p">[</span><span class="s2">"priority"</span><span class="p">],</span> <span class="n">c</span><span class="o">.</span><span class="n">time_in_states</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">sim</span><span class="o">.</span><span class="n">run</span><span class="p">()</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="s2">"entity.customer.time_in_system.mean"</span><span class="p">])</span>
+</code></pre></div>
+<p>Entities have an <code>id</code> (reproducible per simulation), <code>created_at</code>, <code>state</code>,
+free-form <code>attributes</code> and a <code>history</code> of state changes. Pass <code>entity=</code> to
+<code>sim.process</code> or <code>sim.request</code> so logs and flow graphs know who did what.</p>
+<h2 id="resources">Resources<a class="headerlink" href="#resources" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">simulsi</span><span class="w"> </span><span class="kn">import</span> <span class="n">Simulation</span>
+
+<span class="n">sim</span> <span class="o">=</span> <span class="n">Simulation</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">doctors</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">resource</span><span class="p">(</span><span class="s2">"doctor"</span><span class="p">,</span> <span class="n">capacity</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">discipline</span><span class="o">=</span><span class="s2">"priority"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">patient</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">acuity</span><span class="p">,</span> <span class="n">arrive</span><span class="p">):</span>
+    <span class="k">yield</span> <span class="n">arrive</span>
+    <span class="n">req</span> <span class="o">=</span> <span class="k">yield</span> <span class="n">sim</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">doctors</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="n">acuity</span><span class="p">,</span> <span class="n">patience</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">req</span><span class="o">.</span><span class="n">granted</span><span class="p">:</span>          <span class="c1"># reneged after 30 time units</span>
+        <span class="k">return</span>
+    <span class="k">yield</span> <span class="mi">20</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">release</span><span class="p">(</span><span class="n">req</span><span class="p">)</span>
+
+
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">acuity</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]):</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">patient</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">acuity</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+<span class="n">m</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span><span class="o">.</span><span class="n">metrics</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">m</span><span class="p">[</span><span class="s2">"resource.doctor.utilization"</span><span class="p">],</span> <span class="n">m</span><span class="p">[</span><span class="s2">"resource.doctor.wait.mean"</span><span class="p">])</span>
+</code></pre></div>
+<ul>
+<li><strong>Disciplines</strong>: <code>"fifo"</code> (default), <code>"lifo"</code>, <code>"priority"</code> (lower value
+  first, FIFO among equals) or any key function.</li>
+<li><strong>Reneging</strong>: <code>patience=</code> withdraws an ungranted request after a while.</li>
+<li><strong>Capacity changes and downtime</strong>: <code>set_capacity(n)</code>, <code>fail(units, interrupt=False)</code>,
+  <code>repair(units)</code>. Units in use finish normally unless <code>interrupt=True</code>.</li>
+<li><strong>Statistics</strong> (prefix <code>resource.&lt;name&gt;.</code>): <code>utilization</code> (busy / capacity,
+  time-weighted), <code>availability</code>, <code>mean_busy</code>, <code>mean_queue_length</code>,
+  <code>max_queue_length</code>, <code>wait.mean/max/p95/total</code>, <code>requests</code>, <code>grants</code>,
+  <code>releases</code>, <code>reneges</code>, <code>failures</code>, <code>preemptions</code>, <code>throughput</code>, <code>busy_time</code>, <code>capacity_time</code>.</li>
+<li><strong>Invariants</strong> (property-tested): <code>0 &lt;= in_use &lt;= capacity</code>;
+  <code>requests = grants + waiting + reneged</code>; <code>grants = releases + preemptions + in_use</code>.</li>
+</ul>
+<h3 id="preemption">Preemption<a class="headerlink" href="#preemption" title="Permanent link">&para;</a></h3>
+<p><code>sim.resource(name, capacity, discipline="priority", preemptive=True)</code> lets
+a request that finds no free unit evict the least important user, but only if
+the request is strictly more important (lower value). The evicted process gets
+an <code>Interrupt</code> whose <code>cause</code> is a <code>Preempted(resource, by, usage_since)</code>. Its
+unit is already released (calling <code>release</code> on it is a no-op), so it usually
+re-requests the work that remains:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">simulsi</span><span class="w"> </span><span class="kn">import</span> <span class="n">Interrupt</span><span class="p">,</span> <span class="n">Preempted</span><span class="p">,</span> <span class="n">Simulation</span>
+
+<span class="n">sim</span> <span class="o">=</span> <span class="n">Simulation</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">or_room</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">resource</span><span class="p">(</span><span class="s2">"theatre"</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">discipline</span><span class="o">=</span><span class="s2">"priority"</span><span class="p">,</span> <span class="n">preemptive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">operation</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">priority</span><span class="p">,</span> <span class="n">arrive</span><span class="p">,</span> <span class="n">work</span><span class="p">):</span>
+    <span class="k">yield</span> <span class="n">arrive</span>
+    <span class="k">while</span> <span class="n">work</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">req</span> <span class="o">=</span> <span class="k">yield</span> <span class="n">sim</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">or_room</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="n">priority</span><span class="p">)</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">now</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">work</span>
+            <span class="n">work</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">sim</span><span class="o">.</span><span class="n">release</span><span class="p">(</span><span class="n">req</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">Interrupt</span> <span class="k">as</span> <span class="n">stop</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stop</span><span class="o">.</span><span class="n">cause</span><span class="p">,</span> <span class="n">Preempted</span><span class="p">)</span>
+            <span class="n">work</span> <span class="o">-=</span> <span class="n">sim</span><span class="o">.</span><span class="n">now</span> <span class="o">-</span> <span class="n">start</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"t=</span><span class="si">{</span><span class="n">sim</span><span class="o">.</span><span class="n">now</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> bumped, </span><span class="si">{</span><span class="n">work</span><span class="si">}</span><span class="s2"> left"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"t=</span><span class="si">{</span><span class="n">sim</span><span class="o">.</span><span class="n">now</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> done"</span><span class="p">)</span>
+
+
+<span class="n">sim</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">operation</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="s2">"elective"</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">operation</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="s2">"emergency"</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+<h2 id="queues">Queues<a class="headerlink" href="#queues" title="Permanent link">&para;</a></h2>
+<p><code>Queue</code> is an ordered buffer between process steps, with optional capacity
+(blocking <code>put</code>) and blocking <code>get</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">simulsi</span><span class="w"> </span><span class="kn">import</span> <span class="n">Simulation</span>
+
+<span class="n">sim</span> <span class="o">=</span> <span class="n">Simulation</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">orders</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">queue</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="n">discipline</span><span class="o">=</span><span class="s2">"priority"</span><span class="p">,</span> <span class="n">capacity</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">producer</span><span class="p">(</span><span class="n">sim</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+        <span class="k">yield</span> <span class="n">orders</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="sa">f</span><span class="s2">"order-</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="mi">5</span> <span class="o">-</span> <span class="n">i</span><span class="p">)</span>
+        <span class="k">yield</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">consumer</span><span class="p">(</span><span class="n">sim</span><span class="p">):</span>
+    <span class="k">yield</span> <span class="mi">10</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">item</span> <span class="o">=</span> <span class="k">yield</span> <span class="n">orders</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">sim</span><span class="o">.</span><span class="n">now</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
+        <span class="k">yield</span> <span class="mi">2</span>
+
+
+<span class="n">sim</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">producer</span><span class="p">(</span><span class="n">sim</span><span class="p">))</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">consumer</span><span class="p">(</span><span class="n">sim</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">sim</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="s2">"queue.orders.wait.mean"</span><span class="p">])</span>
+</code></pre></div>
+<p>Metrics (prefix <code>queue.&lt;name&gt;.</code>): <code>mean_length</code>, <code>max_length</code>, <code>wait.mean/max</code>,
+<code>puts</code>, <code>gets</code>, <code>removed</code>, <code>throughput</code>, <code>length_final</code>. Items never vanish:
+<code>puts == gets + removed + length</code>.</p>
+<h2 id="randomness">Randomness<a class="headerlink" href="#randomness" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">simulsi.randomness</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">Categorical</span><span class="p">,</span> <span class="n">Empirical</span><span class="p">,</span> <span class="n">Exponential</span><span class="p">,</span> <span class="n">LogNormal</span><span class="p">,</span> <span class="n">Normal</span><span class="p">,</span>
+                                <span class="n">RandomStream</span><span class="p">,</span> <span class="n">Triangular</span><span class="p">,</span> <span class="n">from_spec</span><span class="p">)</span>
+
+<span class="n">rng</span> <span class="o">=</span> <span class="n">RandomStream</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<span class="n">service</span> <span class="o">=</span> <span class="n">LogNormal</span><span class="o">.</span><span class="n">from_moments</span><span class="p">(</span><span class="n">mean</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span> <span class="n">std</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">service</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">rng</span><span class="p">),</span> <span class="n">service</span><span class="o">.</span><span class="n">mean</span><span class="p">,</span> <span class="n">service</span><span class="o">.</span><span class="n">variance</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">Categorical</span><span class="p">({</span><span class="s2">"economy"</span><span class="p">:</span> <span class="mf">0.8</span><span class="p">,</span> <span class="s2">"business"</span><span class="p">:</span> <span class="mf">0.2</span><span class="p">})</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">rng</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">Empirical</span><span class="p">([</span><span class="mf">3.1</span><span class="p">,</span> <span class="mf">4.7</span><span class="p">,</span> <span class="mf">5.2</span><span class="p">,</span> <span class="mf">9.9</span><span class="p">])</span><span class="o">.</span><span class="n">sample_n</span><span class="p">(</span><span class="n">rng</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">from_spec</span><span class="p">({</span><span class="s2">"distribution"</span><span class="p">:</span> <span class="s2">"triangular"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"mode"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">:</span> <span class="mi">6</span><span class="p">}))</span>
+</code></pre></div>
+<p>Available: <code>Constant</code>, <code>Uniform</code>, <code>Normal</code>, <code>Exponential</code> (rate or mean),
+<code>Poisson</code>, <code>Binomial</code>, <code>Gamma</code>, <code>LogNormal</code> (+ <code>from_moments</code>), <code>Triangular</code>,
+<code>Empirical</code> (optionally weighted), <code>Categorical</code>, and <code>Custom(fn)</code>.
+Parameters are validated eagerly (e.g. probabilities must be in [0, 1] and
+sum to 1). <code>RandomStream</code> also has <code>uniform</code>, <code>normal</code>, <code>exponential</code>,
+<code>poisson</code>, <code>binomial</code>, <code>gamma</code>, <code>lognormal</code>, <code>triangular</code>, <code>bernoulli</code>,
+<code>choice</code>, <code>integers</code> and <code>shuffle</code>.</p>
+<p>In a simulation use <code>sim.stream("name")</code>: streams are keyed by name, so the
+arrival stream is the same whatever else the model draws. This is what makes
+common-random-number comparisons effective.</p>
+<h2 id="metrics">Metrics<a class="headerlink" href="#metrics" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">simulsi</span><span class="w"> </span><span class="kn">import</span> <span class="n">Simulation</span>
+
+<span class="n">sim</span> <span class="o">=</span> <span class="n">Simulation</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">m</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">metrics</span>
+<span class="n">m</span><span class="o">.</span><span class="n">observe</span><span class="p">(</span><span class="s2">"wait_time"</span><span class="p">,</span> <span class="mf">4.2</span><span class="p">)</span>          <span class="c1"># one observation (tally: mean, std, quantiles)</span>
+<span class="n">m</span><span class="o">.</span><span class="n">record</span><span class="p">(</span><span class="s2">"work_in_progress"</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>      <span class="c1"># a level that holds until changed (time-weighted)</span>
+<span class="n">m</span><span class="o">.</span><span class="n">increment</span><span class="p">(</span><span class="s2">"orders_shipped"</span><span class="p">)</span>        <span class="c1"># a count (also reported as a rate per time unit)</span>
+<span class="n">m</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="s2">"order_size"</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">])</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">on_finish</span><span class="p">(</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">"cost"</span><span class="p">,</span> <span class="mf">1234.5</span><span class="p">))</span>   <span class="c1"># a final value</span>
+<span class="n">r</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="s2">"wait_time.mean"</span><span class="p">],</span> <span class="n">r</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="s2">"orders_shipped.rate"</span><span class="p">],</span> <span class="n">r</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="s2">"cost"</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">details</span><span class="p">[</span><span class="s2">"metrics"</span><span class="p">][</span><span class="s2">"tallies"</span><span class="p">][</span><span class="s2">"order_size"</span><span class="p">][</span><span class="s2">"histogram"</span><span class="p">])</span>
+</code></pre></div>
+<p><code>sim.warmup(t)</code> (or <code>Model(warmup=...)</code>) discards statistics collected before
+<code>t</code> so steady-state estimates are not biased by an empty-and-idle start.</p>
+<h2 id="failures-and-disruptions">Failures and disruptions<a class="headerlink" href="#failures-and-disruptions" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">simulsi</span><span class="w"> </span><span class="kn">import</span> <span class="n">Simulation</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">simulsi.processes</span><span class="w"> </span><span class="kn">import</span> <span class="n">FailureProcess</span><span class="p">,</span> <span class="n">RecoveryProcess</span><span class="p">,</span> <span class="n">capacity_reduction</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">simulsi.randomness</span><span class="w"> </span><span class="kn">import</span> <span class="n">Exponential</span><span class="p">,</span> <span class="n">Triangular</span>
+
+<span class="n">sim</span> <span class="o">=</span> <span class="n">Simulation</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">press</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">resource</span><span class="p">(</span><span class="s2">"press"</span><span class="p">,</span> <span class="n">capacity</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">crew</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">resource</span><span class="p">(</span><span class="s2">"crew"</span><span class="p">,</span> <span class="n">capacity</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">FailureProcess</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">press</span><span class="p">,</span> <span class="n">time_to_failure</span><span class="o">=</span><span class="n">Exponential</span><span class="p">(</span><span class="n">mean</span><span class="o">=</span><span class="mi">300</span><span class="p">),</span>
+               <span class="n">recovery</span><span class="o">=</span><span class="n">RecoveryProcess</span><span class="p">(</span><span class="n">Triangular</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">60</span><span class="p">),</span> <span class="n">crew</span><span class="o">=</span><span class="n">crew</span><span class="p">),</span> <span class="n">units</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">capacity_reduction</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">press</span><span class="p">,</span> <span class="n">at</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">duration</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">capacity</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>   <span class="c1"># planned maintenance</span>
+<span class="n">m</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="mi">2000</span><span class="p">)</span><span class="o">.</span><span class="n">metrics</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">m</span><span class="p">[</span><span class="s2">"failure.press.count"</span><span class="p">],</span> <span class="n">m</span><span class="p">[</span><span class="s2">"resource.press.availability"</span><span class="p">])</span>
+</code></pre></div>
+<p><code>ScheduledDisruption(sim, at=..., duration=..., apply=..., revert=...)</code> covers
+anything else - a demand spike, a weather window, a closed route.</p>
+<h2 id="state-snapshots-event-logs-and-graphs">State snapshots, event logs and graphs<a class="headerlink" href="#state-snapshots-event-logs-and-graphs" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">simulsi.introspection</span><span class="w"> </span><span class="kn">import</span> <span class="n">model_graph</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">simulsi.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">mmc</span>
+
+<span class="n">sim</span> <span class="o">=</span> <span class="n">mmc</span><span class="o">.</span><span class="n">create</span><span class="p">({</span><span class="s2">"servers"</span><span class="p">:</span> <span class="mi">2</span><span class="p">},</span> <span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">trace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+<span class="n">snap</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">snapshot</span><span class="p">()</span>          <span class="c1"># time, pending events, entities, resources, queues, metrics</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">snap</span><span class="p">[</span><span class="s2">"now"</span><span class="p">],</span> <span class="n">snap</span><span class="p">[</span><span class="s2">"resources"</span><span class="p">][</span><span class="s2">"server"</span><span class="p">])</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">"trace.csv"</span><span class="p">)</span>    <span class="c1"># or .json / .parquet</span>
+
+<span class="n">graphs</span> <span class="o">=</span> <span class="n">model_graph</span><span class="p">(</span><span class="n">mmc</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">duration</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">graphs</span><span class="p">[</span><span class="s2">"inventory"</span><span class="p">])</span>
+</code></pre></div>
+<p>The <em>flow graph</em> is built from the event log of a traced run (entities moving
+between arrival, waiting lines, resources, queues and exit) and renders to
+Mermaid or Graphviz DOT; the <em>state graph</em> shows each entity type's state
+machine. Both are observed from a run - SimulSI models are ordinary Python,
+so the structure is not inferred from source code.</p>
+<h2 id="model-validation">Model validation<a class="headerlink" href="#model-validation" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">simulsi.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">mmc</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">simulsi.validation</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_model</span>
+
+<span class="n">report</span> <span class="o">=</span> <span class="n">validate_model</span><span class="p">(</span><span class="n">mmc</span><span class="p">,</span> <span class="p">{</span><span class="s2">"servers"</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">format</span><span class="p">())</span>          <span class="c1"># parameter error: below minimum 1</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">validate_model</span><span class="p">(</span><span class="n">mmc</span><span class="p">,</span> <span class="p">{</span><span class="s2">"servers"</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span><span class="o">.</span><span class="n">ok</span><span class="p">)</span>
+</code></pre></div>
+<p>Checks: parameter types, bounds and required values; build errors; zero
+capacities; exceptions during a smoke run (e.g. events scheduled in the past);
+models that schedule nothing; processes that finish while holding a resource;
+processes blocked with no pending events (possible deadlock); and, given
+<code>expected_states</code>, states never reached or never declared. A clean report is
+evidence, not proof.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      MIT License © 2026 Yash Jindal
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
