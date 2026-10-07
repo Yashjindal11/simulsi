@@ -79,6 +79,14 @@ pip install "simulsi[viz]"      # + matplotlib plots
 pip install "simulsi[all]"      # + pandas, Parquet, matplotlib, Plotly
 ```
 
+With Docker (dashboard and CLI, no Python needed; the image is published
+for each release):
+
+```bash
+docker run --rm -p 127.0.0.1:8642:8642 ghcr.io/yashjindal11/simulsi        # dashboard on http://localhost:8642
+docker run --rm -v "$PWD:/work" ghcr.io/yashjindal11/simulsi run model.py  # any CLI command
+```
+
 From source (for development):
 
 ```bash
@@ -138,13 +146,14 @@ pages are in [`docs/`](docs):
 
 - [Getting started](docs/getting-started.md) - installation, quickstart, first experiment
 - [Core concepts](docs/concepts.md) - simulation, events, entities, resources, queues, processes, randomness, metrics, disruptions, validation, introspection
-- [Experiments and analysis](docs/experiments.md) - scenarios, experiments, Monte Carlo, statistics, comparison, sensitivity, cost, optimisation
-- [Visualization](docs/visualization.md) - plots and the web dashboard
+- [Experiments and analysis](docs/experiments.md) - scenarios, experiments, Monte Carlo, statistics, variance reduction, comparison, sensitivity, ranking and selection, cost, optimisation, surrogates
+- [Visualization](docs/visualization.md) - plots, HTML reports, notebooks and the web dashboard
 - [CLI and configuration](docs/cli.md)
 - [Architecture](docs/architecture.md) - design, module map, performance, limitations
 - [Extending SimulSI](docs/extending.md)
 - [Research workflow](docs/research.md) - reproducibility, provenance, statistical practice
-- [Examples](docs/examples.md) - walkthroughs of the domain examples
+- [Examples and notebooks](docs/examples.md) - walkthroughs of the domain examples and tutorial notebooks
+- [Coming from SimPy](docs/simpy-migration.md) - concept map and a side-by-side port
 - [FAQ](docs/faq.md) - including how SimulSI compares with other tools
 - [Benchmarks](benchmarks/README.md) - measured numbers and how to reproduce them
 

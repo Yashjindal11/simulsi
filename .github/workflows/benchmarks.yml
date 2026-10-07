@@ -1,0 +1,42 @@
+name: Benchmarks
+
+on:
+  push:
+    branches: [main]
+    paths: ["src/**", "benchmarks/**", ".github/workflows/benchmarks.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: benchmarks
+  cancel-in-progress: false
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e . simpy
+      - name: Fetch the previous result
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          id=$(gh run list --workflow benchmarks.yml --branch main --status success --limit 1 \
+               --json databaseId --jq '.[0].databaseId // empty')
+          if [ -n "$id" ]; then gh run download "$id" -n benchmarks -D previous || true; fi
+      - name: Run and compare
+        run: >
+          python benchmarks/track.py --output bench.json --previous previous/bench.json
+          --summary "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: benchmarks
+          path: bench.json
+          retention-days: 90

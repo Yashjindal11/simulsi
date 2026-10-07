@@ -19,7 +19,24 @@ pip install "simulsi[viz]"       # core + matplotlib, from PyPI
 | `all` | all of the above |
 | `dev` | test, lint and type-check tooling |
 
-Check the install:
+### Docker
+
+The image contains the CLI and the dashboard:
+
+```bash
+docker run --rm -p 127.0.0.1:8642:8642 ghcr.io/yashjindal11/simulsi
+docker run --rm -v "$PWD:/work" ghcr.io/yashjindal11/simulsi run model.py -p servers=3
+docker run --rm -p 127.0.0.1:8642:8642 -v "$PWD:/work" ghcr.io/yashjindal11/simulsi \
+    ui results/ --model model.py --host 0.0.0.0 --port 8642 --no-browser
+```
+
+The dashboard has no authentication, so publish the port on `127.0.0.1`
+only, and keep the host and container port numbers the same (the server
+rejects requests whose `Host` header names another port). Build the image
+yourself with `docker build -t simulsi .`.
+
+### Check the install
+
 
 ```bash
 simulsi --version

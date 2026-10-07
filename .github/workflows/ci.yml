@@ -107,6 +107,24 @@ jobs:
           name: dist
           path: dist/
 
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build image
+        run: docker build -t simulsi:ci .
+      - name: Smoke test the CLI
+        run: |
+          docker run --rm simulsi:ci --version
+          docker run --rm simulsi:ci run builtin:mmc --duration 300 --seed 1
+      - name: Smoke test the dashboard
+        run: |
+          docker run -d --name ui -p 127.0.0.1:8642:8642 simulsi:ci
+          for i in $(seq 1 30); do curl -sf http://localhost:8642/api/info && break; sleep 1; done
+          curl -sf http://localhost:8642/api/info | grep -q builtin:mmc
+          curl -sf http://localhost:8642/ | grep -qi "<div id=\"root\">"
+          docker rm -f ui
+
   security:
     runs-on: ubuntu-latest
     steps:

@@ -21,6 +21,12 @@ All notable changes to this project are documented here. The format follows
   Monte Carlo, fits, selection and optimisation.
 - Dashboard: an *Explore* page (grid sweeps, Morris screening, Monte Carlo),
   a *Response* tab for multi-scenario results, and replay of traced runs.
+- Tutorial notebooks in `examples/notebooks/` (executed in the test suite).
+- A SimPy migration guide (`docs/simpy-migration.md`).
+- Docker image with the CLI and dashboard (`Dockerfile`; published to
+  `ghcr.io/yashjindal11/simulsi` for each release).
+- Benchmark tracking in CI (`benchmarks/track.py`, Benchmarks workflow) with
+  warnings on regressions.
 
 ## [0.3.0] - 2026-10-06
 

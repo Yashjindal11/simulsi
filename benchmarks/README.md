@@ -58,6 +58,21 @@ variation. Re-run the script on your hardware rather than relying on them.
 * `tests/performance/test_performance.py` guards against regressions with
   generous floors (about 10x below these numbers) and a linear-scaling check.
 
+## Tracking in CI
+
+The [Benchmarks workflow](https://github.com/Yashjindal11/simulsi/actions/workflows/benchmarks.yml)
+runs [`track.py`](track.py) on every push to `main` that touches the code:
+engine throughput (events and process models, best of 3), a small serial
+experiment and the SimulSI / SimPy time ratio. It compares them with the
+previous successful run, writes the table to the job summary, keeps the
+JSON as an artifact for 90 days and raises a warning when a number gets
+more than 25% worse. Shared runners are noisy, so it warns rather than
+fails; treat a regression as real when it persists.
+
+```bash
+python benchmarks/track.py --output now.json --previous before.json
+```
+
 ## Comparison with SimPy
 
 [`compare_simpy.py`](compare_simpy.py) runs the same M/M/2 queue (arrival
