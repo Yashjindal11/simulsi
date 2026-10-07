@@ -203,6 +203,7 @@ class Model:
         outputs: Sequence[str] | None = None,
         sim_options: Mapping[str, Any] | None = None,
         strict: bool = True,
+        presets: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> None:
         if not callable(build):
             raise TypeError("build must be callable: build(sim, params)")
@@ -232,6 +233,19 @@ class Model:
             if not spec.required:
                 spec.coerce(spec.default)
             self.parameters[spec.name] = spec
+        self.presets: dict[str, dict[str, Any]] = {k: dict(v) for k, v in (presets or {}).items()}
+        for key, overrides in self.presets.items():
+            issues = self.check_parameters(overrides)
+            if issues:
+                raise ConfigError(f"preset {key!r}: {'; '.join(issues)}")
+
+    def preset_scenarios(self) -> list[Any]:
+        """The presets as scenarios, with a ``baseline`` (model defaults) first."""
+        from simulsi.scenarios.scenario import Scenario
+
+        out = [Scenario("baseline", {}, "model defaults")]
+        out += [Scenario(k, v) for k, v in self.presets.items() if k != "baseline"]
+        return out
 
     # -- parameters ------------------------------------------------------------
 
@@ -375,6 +389,7 @@ class Model:
             "warmup": self.warmup,
             "parameters": [p.to_dict() for p in self.parameters.values()],
             "outputs": list(self.outputs),
+            "presets": {k: dict(v) for k, v in self.presets.items()},
         }
 
     def __call__(self, sim: Simulation, params: Params) -> Any:
@@ -413,6 +428,7 @@ class Model:
             outputs=self.outputs,
             sim_options={**self.sim_options, **(sim_options or {})},
             strict=self.strict,
+            presets=self.presets,
         )
 
     def __repr__(self) -> str:

@@ -9,6 +9,8 @@ simulsi analyze RESULTS [-m METRIC ...] [--baseline NAME] [--confidence C] [--pr
 simulsi warmup TARGET [-p KEY=VALUE ...] [--series KEY] [-r N] [--duration T] [--bins N] [--json]
 simulsi fit FILE [--column NAME] [--candidates NAME ...] [--criterion aic|bic|ks] [--json]
 simulsi report RESULTS [-o report.html] [-m METRIC ...] [--baseline NAME] [--adjust METHOD] [--title T]
+simulsi models [NAME]
+simulsi whatif TARGET (--vary KEY=V1,V2,... | --presets) [-p KEY=VALUE ...] [-m METRIC ...] [-r N] [-w N] [--seed N] [--duration T] [--json]
 simulsi benchmark [--sizes N ...] [--workers N ...] [--replications N] [--no-memory] [--json]
 simulsi visualize TARGET [-o DIR] [-m METRIC ...] [--backend matplotlib|plotly] [--format png|svg|pdf]
 simulsi ui [RESULTS ...] [--model REF ...] [--host H] [--port P] [--no-browser]
@@ -50,6 +52,11 @@ Parameters given with `-p key=value` are parsed as YAML scalars, so
 * **fit** fits input distributions to a CSV column or a text file of
   numbers, ranks them (AIC, BIC or KS) and prints the best one as a config
   spec you can paste into `experiment.yaml`.
+* **models** lists the [built-in models](models.md) or shows one model's
+  parameters, presets and key outputs.
+* **whatif** shows how outputs change: `--vary` sweeps parameter values
+  (repeat it for a full grid), `--presets` compares the model's what-if
+  presets. It prints means with 95% CIs and a bar chart of the first metric.
 * **report** writes a self-contained HTML report of saved results
   (provenance, summaries, charts, comparisons).
 * **benchmark** measures engine throughput (10k / 100k / 1M events),

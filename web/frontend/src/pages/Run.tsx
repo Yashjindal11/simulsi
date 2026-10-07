@@ -124,7 +124,7 @@ export function RunView({ onDone }: { onDone: (id: string) => void }) {
         </p>
       </header>
       <section className="card space-y-3">
-        <Select label="Model" value={modelId} options={models.map((m) => m.id)} onChange={setModelId} />
+        <Select label="Model" value={modelId} options={models.map((m) => m.id)} onChange={(v) => { setModelId(v); setScenarios([{ name: "baseline", values: {} }]); }} />
         {model && (
           <p className="text-sm text-slate-600">
             {model.description} · duration {fmt(model.duration)} · warm-up {fmt(model.warmup)} · version {model.version}
@@ -149,6 +149,23 @@ export function RunView({ onDone }: { onDone: (id: string) => void }) {
         <button className="btn-ghost" onClick={() => setScenarios([...scenarios, { name: `scenario_${scenarios.length}`, values: { ...scenarios[0].values } }])}>
           + Add scenario
         </button>
+        {model && Object.keys(model.presets ?? {}).length > 0 && (
+          <button
+            className="btn-ghost"
+            title="Replace the scenarios with the model's built-in what-if presets"
+            onClick={() =>
+              setScenarios([
+                { name: "baseline", values: {} },
+                ...Object.entries(model.presets).map(([name, overrides]) => ({
+                  name,
+                  values: Object.fromEntries(Object.entries(overrides).map(([k, v]) => [k, String(v)])),
+                })),
+              ])
+            }
+          >
+            Load what-if presets ({Object.keys(model.presets).length})
+          </button>
+        )}
         <label className="flex flex-col gap-1"><span className="label">Replications</span><input className="input w-28" value={replications} onChange={(e) => setReplications(e.target.value)} /></label>
         <label className="flex flex-col gap-1"><span className="label">Seed</span><input className="input w-28" value={seed} onChange={(e) => setSeed(e.target.value)} /></label>
         <label className="flex flex-col gap-1"><span className="label">Duration (optional)</span><input className="input w-36" value={duration} placeholder={fmt(model?.duration)} onChange={(e) => setDuration(e.target.value)} /></label>

@@ -134,6 +134,7 @@ export interface ModelInfo {
   warmup: number;
   parameters: ParamInfo[];
   outputs: string[];
+  presets: Record<string, Record<string, unknown>>;
 }
 
 export interface LogRecord {

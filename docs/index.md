@@ -48,6 +48,7 @@ Every public class and function is documented in the API reference.
 | Architecture | [Architecture](architecture.md) |
 | Extending SimulSI | [Extending](extending.md) |
 | Research workflow | [Research](research.md) |
+| Built-in models and what-ifs | [Model gallery](models.md) |
 | Examples | [Examples](examples.md) |
 | FAQ & comparison with other tools | [FAQ](faq.md) |
 | Benchmarks | [Benchmarks](https://github.com/Yashjindal11/simulsi/blob/main/benchmarks/README.md) |

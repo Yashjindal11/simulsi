@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Six new built-in models: `airline` (delay propagation), `epidemic`
+  (stochastic SEIR with hospital capacity and lockdowns), `supply_chain`
+  (bullwhip effect), `ride_hailing` (pickup feedback and surge pricing),
+  `cloud_autoscaling` (cold starts and scaling policies) and
+  `traffic_signal` (fixed vs actuated timing, checked against Webster).
+- Model presets: named what-if scenarios (`Model(presets=...)`,
+  `model.preset_scenarios()`), shown in `describe()` and loadable in the
+  dashboard.
+- `simulsi models` and `simulsi whatif` (parameter sweeps and preset
+  comparisons with CIs and a bar chart).
+- A model gallery in the docs.
+
 ## [0.4.0] - 2026-10-07
 
 ### Added

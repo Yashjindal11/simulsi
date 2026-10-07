@@ -434,6 +434,133 @@ def cmd_warmup(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_models(args: argparse.Namespace) -> int:
+    from simulsi.analysis.report import format_table
+    from simulsi.models import BUILTIN_MODELS
+
+    if args.name is None:
+        _print(
+            format_table(
+                [
+                    {
+                        "model": f"builtin:{k}",
+                        "description": m.description,
+                        "presets": ", ".join(m.presets) or "-",
+                    }
+                    for k, m in BUILTIN_MODELS.items()
+                ]
+            )
+        )
+        _print("\nDetails: simulsi models NAME   What-if: simulsi whatif builtin:NAME --presets")
+        return EXIT_OK
+    key = args.name.removeprefix("builtin:")
+    if key not in BUILTIN_MODELS:
+        _err(f"unknown built-in model {key!r}; available: {sorted(BUILTIN_MODELS)}")
+        return EXIT_INVALID
+    m = BUILTIN_MODELS[key]
+    _print(f"builtin:{key} - {m.description}")
+    import importlib
+
+    doc = importlib.import_module(m.build.__module__).__doc__ or ""
+    if doc:
+        _print("\n" + doc.strip())
+    _print("\nParameters:")
+    _print(
+        format_table(
+            [
+                {
+                    "name": p.name,
+                    "default": p.default,
+                    "kind": p.kind,
+                    "unit": p.unit or "",
+                    "description": p.description,
+                }
+                for p in m.parameters.values()
+            ]
+        )
+    )
+    if m.presets:
+        _print("\nPresets (what-if scenarios):")
+        for name, overrides in m.presets.items():
+            _print(f"  {name:<26} " + ", ".join(f"{k}={v}" for k, v in overrides.items()))
+    _print("\nKey outputs: " + ", ".join(m.outputs))
+    return EXIT_OK
+
+
+def cmd_whatif(args: argparse.Namespace) -> int:
+    import math
+
+    from simulsi.analysis.report import format_table
+    from simulsi.config.schema import resolve_model
+    from simulsi.experiments.experiment import Experiment
+    from simulsi.scenarios.scenario import Scenario, grid
+
+    model = resolve_model(args.target)
+    if args.duration is not None:
+        model = model.with_options(
+            duration=args.duration, warmup=min(model.warmup, args.duration / 2)
+        )
+    base = _parse_params(args.param)
+    if args.vary:
+        axes: dict[str, list[Any]] = {}
+        for item in args.vary:
+            key, sep, raw = item.partition("=")
+            if not sep or not raw:
+                raise ConfigError(f"--vary expects key=v1,v2,..., got {item!r}")
+            axes[key.strip()] = [yaml.safe_load(v) for v in raw.split(",")]
+        scenarios = grid(axes, base)
+    elif args.presets:
+        if not model.presets:
+            raise ConfigError(f"model {model.name!r} has no presets; use --vary")
+        scenarios = [Scenario(s.name, {**base, **s.parameters}) for s in model.preset_scenarios()]
+    else:
+        raise ConfigError("give --vary KEY=v1,v2,... and/or --presets")
+    metrics = args.metric or model.outputs
+    if not metrics:
+        raise ConfigError("this model declares no outputs; pass -m METRIC")
+    exp = Experiment(
+        model, scenarios, replications=args.replications, seed=args.seed, workers=args.workers
+    )
+    issues = exp.validate()
+    if issues:
+        raise ConfigError("; ".join(issues))
+    res = exp.run()
+    summary = {(r["scenario"], r["metric"]): r for r in res.summary(metrics)}
+    if args.json:
+        from simulsi.serialization.io import to_jsonable
+
+        _print(json.dumps(to_jsonable(list(summary.values())), indent=2))
+        return EXIT_OK
+    rows = []
+    for sc in res.scenarios:
+        row: dict[str, Any] = {"scenario": sc}
+        for mname in metrics:
+            r = summary.get((sc, mname))
+            mean, hw = (r["mean"], r["half_width"]) if r else (math.nan, math.nan)
+            row[mname] = (
+                "-"
+                if math.isnan(mean)
+                else (f"{mean:.4g}" if math.isnan(hw) else f"{mean:.4g} ±{hw:.2g}")
+            )
+        rows.append(row)
+    _print(
+        f"{model.name}: {len(scenarios)} scenarios x {args.replications} replications "
+        f"(common random numbers, 95% CI)\n"
+    )
+    _print(format_table(rows))
+    first = metrics[0]
+    means = [(sc, summary[(sc, first)]["mean"]) for sc in res.scenarios if (sc, first) in summary]
+    finite = [v for _, v in means if not math.isnan(v)]
+    if finite:
+        top = max(abs(v) for v in finite) or 1.0
+        _print(f"\n{first}")
+        width = max(len(sc) for sc, _ in means)
+        for sc, v in means:
+            bar = "" if math.isnan(v) else "#" * max(1, round(40 * abs(v) / top))
+            _print(f"  {sc:<{width}}  {bar} {'' if math.isnan(v) else f'{v:.4g}'}")
+    return EXIT_OK
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     from simulsi.experiments.experiment import ExperimentResult
 
@@ -592,6 +719,28 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--adjust", choices=["none", "bonferroni", "holm", "bh"], default="holm")
     s.add_argument("--title")
     s.set_defaults(func=cmd_report)
+
+    s = sub.add_parser("models", help="list the built-in models, or describe one")
+    s.add_argument("name", nargs="?", help="e.g. airline")
+    s.set_defaults(func=cmd_models)
+
+    s = sub.add_parser("whatif", help="see how outputs change: sweep parameters or compare presets")
+    s.add_argument("target", help="model reference, e.g. builtin:airline")
+    s.add_argument(
+        "--vary",
+        action="append",
+        metavar="KEY=V1,V2,...",
+        help="values to try (repeat for a full grid)",
+    )
+    s.add_argument("--presets", action="store_true", help="compare the model's preset scenarios")
+    s.add_argument("--param", "-p", action="append", metavar="KEY=VALUE", help="fixed base values")
+    s.add_argument("--metric", "-m", action="append", help="outputs to show (default: the model's)")
+    s.add_argument("--replications", "-r", type=int, default=5)
+    s.add_argument("--workers", "-w", type=int, default=1)
+    s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--duration", type=float)
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(func=cmd_whatif)
 
     s = sub.add_parser("benchmark", help="measure engine and experiment throughput on this machine")
     s.add_argument("--sizes", type=int, nargs="+", help="event counts (default 10k 100k 1M)")

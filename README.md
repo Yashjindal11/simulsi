@@ -104,6 +104,8 @@ simulsi run examples/queue.py -p servers=3     # one replication, metrics table
 simulsi experiment my-study/experiment.yaml    # scenarios x replications, comparison, saved results
 simulsi analyze my-study/results/service-desk --precision 0.05
 simulsi visualize my-study/results/service-desk --out plots
+simulsi models                                 # built-in models and their what-if presets
+simulsi whatif builtin:epidemic --presets      # how outputs change across scenarios
 simulsi benchmark                              # events/sec on this machine
 simulsi ui my-study/results/service-desk       # local dashboard on 127.0.0.1
 ```
@@ -120,6 +122,29 @@ scenarios:
   - {name: high_demand, parameters: {arrival_rate: 1.3}}
   - {name: extra_server, parameters: {servers: 3}}
 ```
+
+## Built-in models
+
+Seven ready-to-run models, each with *what-if presets* that show how the
+system reacts when a parameter changes:
+
+| Model | What changes when you turn the knobs |
+|---|---|
+| `builtin:airline` | schedule buffer, crews, gates, spares and storms vs on-time performance and delay propagation |
+| `builtin:epidemic` | R0, vaccination, beds and lockdown policy vs attack rate, hospital overflow and deaths |
+| `builtin:supply_chain` | lead times, forecasting and information sharing vs the bullwhip effect |
+| `builtin:ride_hailing` | fleet size, rush hours and surge pricing vs service level and driver earnings |
+| `builtin:cloud_autoscaling` | cold starts, scaling policy and traffic bursts vs SLO, errors and cost |
+| `builtin:traffic_signal` | cycle length, green split, fixed vs actuated control (checked against Webster) |
+| `builtin:mmc` | the M/M/c queue (checked against Erlang C) |
+
+```bash
+simulsi models airline                                      # parameters and presets
+simulsi whatif builtin:airline --presets                    # compare every preset
+simulsi whatif builtin:traffic_signal --vary cycle=30,60,90,120
+```
+
+See the [model gallery](docs/models.md) for what each one shows.
 
 ## Examples
 
@@ -152,6 +177,7 @@ pages are in [`docs/`](docs):
 - [Architecture](docs/architecture.md) - design, module map, performance, limitations
 - [Extending SimulSI](docs/extending.md)
 - [Research workflow](docs/research.md) - reproducibility, provenance, statistical practice
+- [Built-in model gallery](docs/models.md) - airline, epidemic, supply chain, ride hailing, cloud, traffic, M/M/c
 - [Examples and notebooks](docs/examples.md) - walkthroughs of the domain examples and tutorial notebooks
 - [Coming from SimPy](docs/simpy-migration.md) - concept map and a side-by-side port
 - [FAQ](docs/faq.md) - including how SimulSI compares with other tools

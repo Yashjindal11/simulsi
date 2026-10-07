@@ -68,6 +68,11 @@ mmc = Model(
     ],
     outputs=["resource.server.wait.mean", "resource.server.utilization"],
     sim_options={"keep_values": False, "record_series": False, "keep_entity_history": False},
+    presets={
+        "busy": {"arrival_rate": 0.97},
+        "two_servers": {"arrival_rate": 1.8, "servers": 2},
+        "pooled_three": {"arrival_rate": 2.7, "servers": 3},
+    },
 )
 
 BUILTIN_MODELS: dict[str, Model] = {"mmc": mmc}

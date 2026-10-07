@@ -59,6 +59,7 @@ nav:
       - Experiments and analysis: experiments.md
       - Visualization and dashboard: visualization.md
       - CLI and configuration: cli.md
+      - Built-in model gallery: models.md
       - Examples and notebooks: examples.md
       - Coming from SimPy: simpy-migration.md
   - Background:
