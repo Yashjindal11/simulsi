@@ -11,6 +11,21 @@ simulsi validate examples/manufacturing.py
 simulsi visualize examples/bank_queue.py --out plots
 ```
 
+## Notebooks
+
+Three tutorial notebooks in
+[`examples/notebooks/`](https://github.com/Yashjindal11/simulsi/tree/main/examples/notebooks)
+walk through the main workflow (they are executed in CI):
+
+1. [`01-first-model.ipynb`](https://github.com/Yashjindal11/simulsi/blob/main/examples/notebooks/01-first-model.ipynb) -
+   build a model, run it, read the metrics, trace and plot a run.
+2. [`02-experiments-and-decisions.ipynb`](https://github.com/Yashjindal11/simulsi/blob/main/examples/notebooks/02-experiments-and-decisions.ipynb) -
+   replications, comparisons with adjusted p-values, run-until-precision,
+   ranking and selection, an HTML report.
+3. [`03-inputs-sensitivity-optimisation.ipynb`](https://github.com/Yashjindal11/simulsi/blob/main/examples/notebooks/03-inputs-sensitivity-optimisation.ipynb) -
+   fit an input distribution, Morris screening, a Gaussian-process surrogate
+   and cost optimisation.
+
 ## 1. Bank queue - [`bank_queue.py`](https://github.com/Yashjindal11/simulsi/blob/main/examples/bank_queue.py)
 
 Poisson arrivals, log-normal service times (specified by mean and coefficient

@@ -59,7 +59,8 @@ nav:
       - Experiments and analysis: experiments.md
       - Visualization and dashboard: visualization.md
       - CLI and configuration: cli.md
-      - Examples: examples.md
+      - Examples and notebooks: examples.md
+      - Coming from SimPy: simpy-migration.md
   - Background:
       - Architecture: architecture.md
       - Extending SimulSI: extending.md
@@ -68,16 +69,16 @@ nav:
   - API reference:
       - Simulation and clock: api/simulation.md
       - Events: api/events.md
-      - Processes and disruptions: api/processes.md
-      - Resources and queues: api/resources.md
+      - Processes, schedules and flow: api/processes.md
+      - Resources, containers and queues: api/resources.md
       - Entities: api/entities.md
       - Randomness: api/randomness.md
       - Metrics: api/metrics.md
       - Models and scenarios: api/models.md
       - Experiments and Monte Carlo: api/experiments.md
       - Statistics: api/statistics.md
-      - Comparison and sensitivity: api/analysis.md
-      - Cost and optimisation: api/decisions.md
+      - Comparison, selection and sensitivity: api/analysis.md
+      - Cost, optimisation and surrogates: api/decisions.md
       - Validation and introspection: api/validation.md
       - Visualization: api/visualization.md
       - Configuration and I/O: api/io.md

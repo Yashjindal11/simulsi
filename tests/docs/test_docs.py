@@ -26,6 +26,7 @@ DOCS = [
     ROOT / "docs" / "visualization.md",
     ROOT / "docs" / "extending.md",
     ROOT / "docs" / "research.md",
+    ROOT / "docs" / "simpy-migration.md",
 ]
 BLOCK = re.compile(r"^```python\n(.*?)^```", re.M | re.S)
 
