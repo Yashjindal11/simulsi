@@ -130,8 +130,11 @@ The dashboard lets you:
    of another parameter), Morris sensitivity screening, and Monte Carlo over
    uncertain inputs with output distributions and Spearman correlations;
 7. trace a single run and **replay** it: a time slider (or Play) shows busy
-   and idle units, waiting entities, queue and container levels and the
-   latest events at each moment, next to the full event log;
+   and idle units, waiting entities, queue and container levels, every level
+   the model records (for example the epidemic's S/E/I/R counts) and the
+   latest events at each moment, next to the full event log. Tick *Compare
+   two parameter sets* (or pick two presets) to run both with the same seed
+   and replay them side by side on one clock, with a metric-by-metric diff;
 8. export results as JSON, CSV or an HTML report.
 
 Runs, grid sweeps and analyses run as background jobs, so the page stays

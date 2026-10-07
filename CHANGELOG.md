@@ -11,6 +11,8 @@ All notable changes to this project are documented here. The format follows
 - Flowchart models in YAML (`simulsi.flowchart`): sources, resource and delay
   stations, probabilistic routing, patience, shifts, parameters (`$name`)
   and presets; usable anywhere a model reference is accepted.
+- Dashboard: side-by-side replay of two parameter sets (or presets) on one
+  clock with a metric diff, and charts for every series a model records.
 
 ## [0.5.0] - 2026-10-07
 
