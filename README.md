@@ -198,6 +198,7 @@ pages are in [`docs/`](docs):
 - [Examples and notebooks](docs/examples.md) - walkthroughs of the domain examples and tutorial notebooks
 - [Coming from SimPy](docs/simpy-migration.md) - concept map and a side-by-side port
 - [FAQ](docs/faq.md) - including how SimulSI compares with other tools
+- [Roadmap](docs/roadmap.md) - what is next and what is deliberately out of scope
 - [Benchmarks](benchmarks/README.md) - measured numbers and how to reproduce them
 
 ## Status
@@ -206,6 +207,11 @@ SimulSI is alpha software (0.x) and the API may still change. It is tested on
 Python 3.11-3.13 (Linux, macOS, Windows in CI) with unit, property-based
 (Hypothesis), statistical, integration, CLI and performance tests - including
 checks of simulated M/M/c queues against closed-form Erlang-C results.
+
+## Citing
+
+If SimulSI helps your work, please cite it - GitHub's *Cite this repository*
+button uses [`CITATION.cff`](CITATION.cff).
 
 ## Contributing
 

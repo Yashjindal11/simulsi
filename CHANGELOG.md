@@ -18,6 +18,8 @@ All notable changes to this project are documented here. The format follows
   refit), rare-event probabilities with exact intervals and generalised
   Pareto tail extrapolation (`rare_event_probability`), and the
   cross-entropy method in `optimize(method="cem")`.
+- Model plugins through the `simulsi.models` entry-point group;
+  `CITATION.cff`; a model-request issue template; a roadmap page.
 - Multi-objective optimisation: `pareto_search`, `pareto_front`,
   `ParetoResult.plot()` and `simulsi pareto`.
 - "Try it in your browser" docs page running SimulSI with Pyodide.

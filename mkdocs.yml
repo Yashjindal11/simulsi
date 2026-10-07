@@ -69,6 +69,7 @@ nav:
       - Extending SimulSI: extending.md
       - Research workflow: research.md
       - FAQ: faq.md
+      - Roadmap: roadmap.md
   - API reference:
       - Simulation and clock: api/simulation.md
       - Events: api/events.md

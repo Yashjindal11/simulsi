@@ -1,0 +1,26 @@
+name: Model request
+description: Suggest a new built-in model or preset
+labels: [model]
+body:
+  - type: textarea
+    id: system
+    attributes:
+      label: System
+      description: What should the model represent? Who uses this kind of model and for which decisions?
+    validations:
+      required: true
+  - type: textarea
+    id: knobs
+    attributes:
+      label: Parameters and what-ifs
+      description: Which parameters should be adjustable, and which what-if scenarios would be interesting?
+  - type: textarea
+    id: outputs
+    attributes:
+      label: Key outputs
+      description: Which results matter (waits, costs, service levels, ...)?
+  - type: textarea
+    id: references
+    attributes:
+      label: References or known results
+      description: Papers, formulas or benchmarks the model could be validated against.

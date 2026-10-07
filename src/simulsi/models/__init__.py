@@ -17,6 +17,14 @@
 * ``traffic_signal`` - fixed vs actuated signal timing, compared with Webster
 
 Every model has ``presets``: named what-if scenarios (``model.preset_scenarios()``).
+
+Other packages can add models through the ``simulsi.models`` entry-point
+group, for example in ``pyproject.toml``::
+
+    [project.entry-points."simulsi.models"]
+    bakery = "mypackage.models:bakery"
+
+They then work as ``builtin:bakery`` in the CLI, configs and the dashboard.
 """
 
 from simulsi.models.airline import airline
@@ -57,6 +65,34 @@ BUILTIN_MODELS.update(
     }
 )
 
+
+def load_plugin_models() -> dict[str, str]:
+    """Register models from the ``simulsi.models`` entry points; returns load errors by name."""
+    import warnings
+    from importlib.metadata import entry_points
+
+    from simulsi.core.model import Model
+
+    errors: dict[str, str] = {}
+    for ep in entry_points(group="simulsi.models"):
+        if ep.name in BUILTIN_MODELS:
+            continue
+        try:
+            obj = ep.load()
+        except Exception as exc:  # a broken plugin must not break SimulSI
+            errors[ep.name] = f"{type(exc).__name__}: {exc}"
+            continue
+        if not isinstance(obj, Model):
+            errors[ep.name] = f"{ep.value} is not a simulsi Model"
+            continue
+        BUILTIN_MODELS[ep.name] = obj
+    for name, err in errors.items():
+        warnings.warn(f"simulsi model plugin {name!r} could not be loaded: {err}", stacklevel=2)
+    return errors
+
+
+load_plugin_models()
+
 __all__ = [
     "BUILTIN_MODELS",
     "airline",
@@ -68,6 +104,7 @@ __all__ = [
     "erlang_c",
     "ev_charging",
     "inventory",
+    "load_plugin_models",
     "mmc",
     "restaurant",
     "ride_hailing",

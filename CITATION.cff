@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use SimulSI in your work, please cite it as below."
+title: "SimulSI: Simulation Intelligence"
+abstract: >-
+  A general-purpose, reproducible discrete-event simulation and experimentation
+  framework for Python: models, replications with common random numbers,
+  statistics, scenario comparison, sensitivity analysis, optimisation and a
+  local web dashboard.
+type: software
+authors:
+  - given-names: Yash
+    family-names: Jindal
+    email: ykjindal4@gmail.com
+repository-code: "https://github.com/Yashjindal11/simulsi"
+url: "https://yashjindal11.github.io/simulsi/"
+license: MIT
+version: 0.6.0
+date-released: "2026-10-07"
+keywords:
+  - discrete-event simulation
+  - simulation
+  - operations research
+  - experiments
+  - statistics

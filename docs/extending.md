@@ -128,6 +128,21 @@ unreliable = Model(
 print(unreliable.simulate(seed=1).metrics["resource.server.availability"])
 ```
 
+## Sharing models as plugins
+
+A package can register models so they appear as `builtin:<name>` in the
+CLI, experiment configs and the dashboard. Add an entry point in its
+`pyproject.toml`:
+
+```toml
+[project.entry-points."simulsi.models"]
+bakery = "mypackage.models:bakery"     # a simulsi Model object
+```
+
+After `pip install mypackage`, `simulsi models` lists `builtin:bakery` and
+`simulsi whatif builtin:bakery --presets` works. A plugin that fails to load
+produces a warning and is skipped; it never stops SimulSI from starting.
+
 ## Connecting optimisers
 
 `simulsi.optimization.Objective` exposes `__call__(x) -> float`, `bounds` and
