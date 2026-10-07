@@ -20,6 +20,7 @@ from simulsi.randomness.distributions import (
     is_distribution_spec,
     registered_distributions,
 )
+from simulsi.randomness.fitting import FitReport, FitResult, fit_distribution, load_values
 from simulsi.randomness.stream import RandomStream, SamplingMode, derive_seed, fresh_seed
 
 __all__ = [
@@ -31,6 +32,8 @@ __all__ = [
     "DistributionLike",
     "Empirical",
     "Exponential",
+    "FitReport",
+    "FitResult",
     "Gamma",
     "LogNormal",
     "Normal",
@@ -41,8 +44,10 @@ __all__ = [
     "Uniform",
     "as_distribution",
     "derive_seed",
+    "fit_distribution",
     "fresh_seed",
     "from_spec",
     "is_distribution_spec",
+    "load_values",
     "registered_distributions",
 ]

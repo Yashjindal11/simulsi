@@ -27,6 +27,9 @@ All notable changes to this project are documented here. The format follows
   shift schedules (`capacity_schedule`); non-stationary arrivals
   (`arrivals` with `PiecewiseRate` or a rate function); `batch`, `split`/`join`,
   `Router` and `shortest_queue`.
+- Input modelling: `fit_distribution` (MLE fits ranked by AIC/BIC/KS, with
+  `FitReport.format()` and `plot()`), `load_values` and `simulsi fit`;
+  trace-driven input with `load_trace`, `trace_arrivals` and `TraceReplay`.
 
 ### Changed
 

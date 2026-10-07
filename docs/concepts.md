@@ -384,6 +384,50 @@ In a simulation use `sim.stream("name")`: streams are keyed by name, so the
 arrival stream is the same whatever else the model draws. This is what makes
 common-random-number comparisons effective.
 
+## Input data: fitting and traces
+
+Input distributions should come from data. `fit_distribution` fits the
+exponential, gamma, lognormal, normal, uniform, triangular and Poisson
+families by maximum likelihood and ranks them:
+
+```python
+import numpy as np
+
+from simulsi.randomness import fit_distribution
+
+observed = np.random.default_rng(7).gamma(2.5, 1.6, size=400)   # e.g. service times
+report = fit_distribution(observed)
+print(report.format())                    # AIC, BIC, KS statistic and p-value per family
+service = report.best.distribution        # a simulsi Gamma, ready to sample
+print(service, report.best.distribution.to_spec())
+```
+
+* Families whose support does not fit the data (gamma or lognormal with
+  zeros, Poisson with fractions) are listed in `report.skipped`.
+* KS p-values use parameters estimated from the same data, so they are
+  optimistic. With fewer than about 30 observations, or when the best family
+  is still rejected, use `Empirical(data)` instead.
+* `report.plot()` overlays the top fits on a histogram.
+* `simulsi fit data.csv --column service` does the same from the command
+  line and prints a spec for `experiment.yaml`.
+
+**Trace-driven runs** replay history instead of sampling. With recorded
+arrivals and service times, a valid model should reproduce the recorded
+waits, which makes this a strong validation check:
+
+```py
+from simulsi.processes import TraceReplay, load_trace, trace_arrivals
+
+history = load_trace("arrivals.csv")          # rows like {"time": 3.5, "service": 4.1}
+
+def job(sim, record):
+    yield from sim.use(server, record["service"])
+
+trace_arrivals(sim, history, job)               # one arrival per row, at row["time"]
+repair_times = TraceReplay([12.0, 30.5, 8.2], cycle=True)
+repair_times.sample()                           # next recorded value
+```
+
 ## Metrics
 
 ```python

@@ -16,6 +16,7 @@ from simulsi.processes.process import (
     Waitable,
 )
 from simulsi.processes.schedules import PiecewiseRate, arrivals, capacity_schedule
+from simulsi.processes.trace import TraceExhausted, TraceReplay, load_trace, trace_arrivals
 
 __all__ = [
     "AllOf",
@@ -30,12 +31,16 @@ __all__ = [
     "ScheduledDisruption",
     "Signal",
     "Timeout",
+    "TraceExhausted",
+    "TraceReplay",
     "Waitable",
     "arrivals",
     "batch",
     "capacity_reduction",
     "capacity_schedule",
     "join",
+    "load_trace",
     "shortest_queue",
     "split",
+    "trace_arrivals",
 ]

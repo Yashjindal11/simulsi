@@ -6,4 +6,6 @@
 
 ::: simulsi.processes.flow
 
+::: simulsi.processes.trace
+
 ::: simulsi.processes.disruption

@@ -434,6 +434,29 @@ def cmd_warmup(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_fit(args: argparse.Namespace) -> int:
+    from simulsi.randomness.fitting import CANDIDATES, fit_distribution, load_values
+
+    values = load_values(args.file, args.column)
+    try:
+        report = fit_distribution(values, args.candidates or CANDIDATES, criterion=args.criterion)
+    except ValueError as exc:
+        _err(str(exc))
+        return EXIT_INVALID
+    if args.json:
+        from simulsi.serialization.io import to_jsonable
+
+        _print(json.dumps(to_jsonable(report.to_dict()), indent=2))
+        return EXIT_OK
+    _print(report.format())
+    if report.results:
+        import yaml
+
+        _print("\nbest fit as a config spec:")
+        _print(yaml.safe_dump(report.best.distribution.to_spec(), sort_keys=False).rstrip())
+    return EXIT_OK
+
+
 # -- parser ----------------------------------------------------------------------------
 
 
@@ -535,6 +558,14 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--seed", type=int, default=0)
     s.add_argument("--json", action="store_true")
     s.set_defaults(func=cmd_warmup)
+
+    s = sub.add_parser("fit", help="fit input distributions to data (CSV column or text)")
+    s.add_argument("file", help="a .csv file, or a text file of numbers")
+    s.add_argument("--column", "-c", help="CSV column (default: first numeric column)")
+    s.add_argument("--candidates", nargs="+", metavar="NAME", help="families to try")
+    s.add_argument("--criterion", choices=["aic", "bic", "ks"], default="aic")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(func=cmd_fit)
 
     s = sub.add_parser("benchmark", help="measure engine and experiment throughput on this machine")
     s.add_argument("--sizes", type=int, nargs="+", help="event counts (default 10k 100k 1M)")
