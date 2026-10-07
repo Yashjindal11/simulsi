@@ -15,6 +15,12 @@ SHORT = {
     "mmc": 2_000.0,
     "airline": None,
     "airport_turnaround": None,
+    "emergency_department": None,
+    "restaurant": None,
+    "ev_charging": None,
+    "inventory": None,
+    "theme_park": None,
+    "warehouse": None,
     "disruption_recovery": None,
     "epidemic": None,
     "supply_chain": None,
@@ -178,3 +184,31 @@ def test_disruption_recovery_policies() -> None:
     assert _mean(m, {"policy": "cancel"}, "legs.cancelled", 2) > 0
     assert _mean(m, {"policy": "spares"}, "spare_trips", 2) > 0
     assert _mean(m, {"policy": "spares"}, "cost", 2) < _mean(m, {}, "cost", 2)
+
+
+def test_more_models_react_in_the_expected_direction() -> None:
+    ed = BUILTIN_MODELS["emergency_department"]
+    assert _mean(ed, {"doctors": 6}, "door_to_doctor.mean", 3) < _mean(
+        ed, {}, "door_to_doctor.mean", 3
+    )
+    assert _mean(ed, {"ward_beds": 120}, "boarding_minutes.mean", 3) < 1.0
+    rest = BUILTIN_MODELS["restaurant"]
+    assert _mean(rest, {"cooks": 5}, "resource.cook.wait.mean") < _mean(
+        rest, {}, "resource.cook.wait.mean"
+    )
+    assert _mean(rest, {"flexible_seating": True}, "upsized_tables") > 0
+    ev = BUILTIN_MODELS["ev_charging"]
+    assert _mean(ev, {"grid_limit_kw": 2000.0}, "charge_power_kw.mean") > _mean(
+        ev, {"grid_limit_kw": 300.0}, "charge_power_kw.mean"
+    )
+    inv = BUILTIN_MODELS["inventory"]
+    assert _mean(inv, {"s": 140}, "fill_rate") > _mean(inv, {"s": 30}, "fill_rate")
+    with pytest.raises(ValueError, match="larger than s"):
+        inv.simulate({"s": 300, "S": 200}, seed=1)
+    park = BUILTIN_MODELS["theme_park"]
+    r = park.simulate({"express_share": 0.3}, seed=1).metrics
+    assert r["wait.express.mean"] < r["wait.regular.mean"]
+    wh = BUILTIN_MODELS["warehouse"]
+    assert _mean(wh, {"orders_per_hour": 130.0, "picking": "batch"}, "on_time_rate", 3) > _mean(
+        wh, {"orders_per_hour": 130.0}, "on_time_rate", 3
+    )

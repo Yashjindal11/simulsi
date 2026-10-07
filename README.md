@@ -131,7 +131,7 @@ scenarios:
 
 ## Built-in models
 
-Nine ready-to-run models, each with *what-if presets* that show how the
+Fifteen ready-to-run models, each with *what-if presets* that show how the
 system reacts when a parameter changes:
 
 | Model | What changes when you turn the knobs |
@@ -144,6 +144,12 @@ system reacts when a parameter changes:
 | `builtin:ride_hailing` | fleet size, rush hours and surge pricing vs service level and driver earnings |
 | `builtin:cloud_autoscaling` | cold starts, scaling policy and traffic bursts vs SLO, errors and cost |
 | `builtin:traffic_signal` | cycle length, green split, fixed vs actuated control (checked against Webster) |
+| `builtin:emergency_department` | doctors, ward beds (boarding), fast track and surges vs waits and patients leaving unseen |
+| `builtin:restaurant` | table mix, flexible seating, reservations and cooks vs covers and walk-aways |
+| `builtin:ev_charging` | fast chargers and the site grid limit vs charging power, queues and balking |
+| `builtin:inventory` | the (s, S) reorder policy vs fill rate and cost |
+| `builtin:theme_park` | express passes, app-based routing and ride capacity vs waits and rides per visitor |
+| `builtin:warehouse` | discrete vs batch picking, packers and peaks vs on-time shipping |
 | `builtin:mmc` | the M/M/c queue (checked against Erlang C) |
 
 ```bash

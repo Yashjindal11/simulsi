@@ -1,6 +1,6 @@
 # Built-in model gallery
 
-SimulSI ships nine ready-to-run models. Each is a normal `Model` with
+SimulSI ships fifteen ready-to-run models. Each is a normal `Model` with
 documented parameters, key outputs and **presets**: named what-if
 scenarios that show how the system reacts when you change something. Use
 them to learn the library, to teach, or as starting points for your own
@@ -32,6 +32,12 @@ read the tables for *direction and size of effects*, not as forecasts.
 
 | Model | What it shows | Time unit |
 |---|---|---|
+| [`emergency_department`](#more-models) | triage, acuity priority, boarding, fast track, diversion | minutes |
+| [`restaurant`](#more-models) | table mix, flexible seating, reservations, kitchen | minutes |
+| [`ev_charging`](#more-models) | fast/slow chargers under a shared grid limit | minutes |
+| [`inventory`](#more-models) | the (s, S) reorder policy | days |
+| [`theme_park`](#more-models) | express passes, smart routing, ride capacity | minutes |
+| [`warehouse`](#more-models) | discrete vs batch picking, packing, truck cut-offs | minutes |
 | [`mmc`](#mmc) | the M/M/c queue, checked against Erlang C | any |
 | [`airline`](#airline) | delay propagation through aircraft rotations, crews and gates | minutes |
 | [`airport_turnaround`](#airport-turnaround) | parallel ground-handling tasks, shared crews, the critical path | minutes |
@@ -245,6 +251,50 @@ saturation and delay jumps to 40.7 s, while actuated control holds it at
 15.5 s. With `wrong_split` (35% green to the busier approach) that approach
 becomes oversaturated: Webster's formula has no answer (NaN) and the queue
 grows for the whole hour.
+
+## More models
+
+Results from `simulsi whatif builtin:<model> --presets -r 4` (means; the
+CIs are in the command output).
+
+**emergency_department** - patients are triaged, prioritised by acuity and
+need a bed and a doctor; admitted patients *board* in their ED bed until a
+ward bed frees up. Baseline: 39 min door-to-doctor, 58 patients leaving
+unseen over two days. An extra doctor cuts door-to-doctor to 24 min and
+walk-outs to 21. A 40% surge pushes door-to-doctor to 102 min and walk-outs
+to 195 as boarding (71 min) blocks beds; a fast-track clinician for minor
+cases roughly halves the walk-outs in a surge.
+
+**restaurant** - parties need a table of the right size and the kitchen
+cooks every order. Flexible seating (small parties at larger free tables)
+does *not* help here: waits rise from 7.8 to 8.7 min and walk-aways from
+18.5 to 20.5, because small parties end up blocking big tables; the kitchen,
+not the tables, limits revenue in the rush (an extra cook: cook wait 11 ->
+3 min, covers 163 -> 170). Heavy reservations cut walk-aways (19 -> 12) but
+lengthen waits for walk-ins.
+
+**ev_charging** - with a 600 kW site limit, ten fast chargers on a busy day
+deliver only 76 kW per car (15% of drivers give up); with a 1,500 kW grid
+connection the same chargers deliver 147 kW and almost nobody leaves, and
+revenue rises from 4,900 to 6,050. More chargers without more grid mostly
+buys queue space, not throughput.
+
+**inventory** - the classic (s, S) policy: lowering the reorder point from 80
+to 40 drops the fill rate from 93% to 84% and raises cost; tiny order
+quantities (S = 150) mean twice as many orders and higher cost; a slow
+supplier (8-day lead time) cuts the fill rate to 70%. Use `optimize(...)` or
+`pareto_search(...)` over `s` and `S` to find the best policy.
+
+**theme_park** - express passes keep their holders' waits near zero, but at
+40% express the regular visitors wait 85 min instead of 59. App-based smart
+routing (shortest posted wait) and a bigger coaster both raise rides per
+visitor; a crowd day cuts rides per visitor from 4.4 to 3.4.
+
+**warehouse** - batch picking shares walking time: on a peak day (130 orders
+per hour) discrete picking saturates the pickers and only 27% of orders
+make their truck, while batches of four get 75% out on time with pickers
+70% busy. Batches that are too big (eight) make early orders wait for the
+batch and hurt on-time shipping on normal days.
 
 ## How the models are validated
 
