@@ -17,6 +17,8 @@ All notable changes to this project are documented here. The format follows
 - Multi-objective optimisation: `pareto_search`, `pareto_front`,
   `ParetoResult.plot()` and `simulsi pareto`.
 - "Try it in your browser" docs page running SimulSI with Pyodide.
+- Validation tests for the built-in models against theory (final-size
+  equation, Webster, service-time tails) and limiting cases.
 - Dashboard: side-by-side replay of two parameter sets (or presets) on one
   clock with a metric diff, and charts for every series a model records.
 

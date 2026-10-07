@@ -246,6 +246,22 @@ saturation and delay jumps to 40.7 s, while actuated control holds it at
 becomes oversaturated: Webster's formula has no answer (NaN) and the queue
 grows for the whole hour.
 
+## How the models are validated
+
+Besides directional tests (for example "padding the schedule raises on-time
+performance"), the test suite checks the models against theory and limiting
+cases:
+
+* `mmc` against the Erlang C formula;
+* `epidemic` against the Kermack-McKendrick final-size equation
+  `z = 1 - exp(-R0 z)` (also with vaccination), and dying out when R0 < 1;
+* `traffic_signal` against Webster's delay formula;
+* `cloud_autoscaling` with no queueing against the service-time
+  distribution's tail;
+* `airline`, `airport_turnaround`, `disruption_recovery`, `supply_chain` and
+  `ride_hailing` in their no-disruption / unlimited-capacity limits (no
+  cancellations, no backorders, everyone served, no waiting for crews).
+
 ## Writing your own
 
 Each model is a single file in
