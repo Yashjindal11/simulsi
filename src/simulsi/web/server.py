@@ -21,7 +21,7 @@ import math
 import mimetypes
 import threading
 import webbrowser
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -74,6 +74,23 @@ class DashboardState:
             try:
                 rid = self.add_result(exp.run(progress=progress), source)
                 self.jobs[jid].update(status="done", result_id=rid)
+            except Exception as exc:  # reported to the client, not raised in the thread
+                self.jobs[jid].update(status="error", error=f"{type(exc).__name__}: {exc}")
+
+        threading.Thread(target=work, name=f"simulsi-{jid}", daemon=True).start()
+        return jid
+
+    def start_task(self, kind: str, fn: Callable[[], dict[str, Any]]) -> str:
+        """Run an analysis in a background thread; its JSON output lands in ``job['output']``."""
+        with self._lock:
+            self._job_counter += 1
+            jid = f"j{self._job_counter}"
+            self.jobs[jid] = {"id": jid, "kind": kind, "status": "running", "done": 0,
+                              "total": 0, "result_id": None, "error": None, "output": None}
+
+        def work() -> None:
+            try:
+                self.jobs[jid].update(status="done", output=fn())
             except Exception as exc:  # reported to the client, not raised in the thread
                 self.jobs[jid].update(status="error", error=f"{type(exc).__name__}: {exc}")
 
@@ -163,6 +180,14 @@ def run_trace(model: Model, params: Mapping[str, Any], seed: int, duration: floa
     }
 
 
+def _with_duration(model: Model, duration: Any) -> Model:
+    if duration is None:
+        return model
+    if not 0 < float(duration) <= 1e7:
+        raise ConfigError("duration must be in (0, 1e7]")
+    return model.with_options(duration=float(duration), warmup=min(model.warmup, float(duration) / 2))
+
+
 def build_experiment(state: DashboardState, body: Mapping[str, Any]) -> Experiment:
     """Validate a run request and turn it into an experiment (raises on bad input)."""
     model = state.model(str(body.get("model", "")))
@@ -173,17 +198,111 @@ def build_experiment(state: DashboardState, body: Mapping[str, Any]) -> Experime
     reps = int(body.get("replications", 10))
     if reps < 1 or reps * len(scenarios) > MAX_RUNS:
         raise ConfigError(f"replications x scenarios must be between 1 and {MAX_RUNS}")
-    duration = body.get("duration")
-    if duration is not None:
-        if not 0 < float(duration) <= 1e7:
-            raise ConfigError("duration must be in (0, 1e7]")
-        model = model.with_options(duration=float(duration), warmup=min(model.warmup, float(duration) / 2))
+    model = _with_duration(model, body.get("duration"))
     exp = Experiment(model, scenarios, replications=reps, seed=int(body.get("seed", 0)),
                      workers=1, on_error="record")
     issues = exp.validate()
     if issues:
         raise ConfigError("; ".join(issues))
     return exp
+
+
+def _check_runs(n: int) -> None:
+    if n < 1 or n > MAX_RUNS:
+        raise ConfigError(f"this request needs {n} runs; the dashboard allows 1 to {MAX_RUNS}")
+
+
+def _outputs(body: Mapping[str, Any], model: Model) -> list[str]:
+    outs = [str(o) for o in body.get("outputs") or []]
+    if not outs:
+        outs = list(model.outputs)[:10]
+    if not outs:
+        raise ConfigError("name at least one output metric")
+    if len(outs) > 20:
+        raise ConfigError("at most 20 outputs")
+    return outs
+
+
+def build_grid(state: DashboardState, body: Mapping[str, Any]) -> Experiment:
+    """A full-factorial experiment over ``factors`` ({parameter: [values]})."""
+    model = _with_duration(state.model(str(body.get("model", ""))), body.get("duration"))
+    factors = body.get("factors")
+    if not isinstance(factors, dict) or not factors or len(factors) > 4:
+        raise ConfigError("factors must map 1 to 4 parameters to lists of values")
+    exp = Experiment(model, replications=int(body.get("replications", 5)),
+                     seed=int(body.get("seed", 0)), workers=1, on_error="record")
+    base = Scenario("baseline", dict(body.get("base") or {}))
+    exp.grid({str(k): list(v) for k, v in factors.items()}, base)
+    if len(exp.scenarios) > 200:
+        raise ConfigError(f"the grid has {len(exp.scenarios)} scenarios; at most 200")
+    _check_runs(len(exp.scenarios) * exp.replications)
+    issues = exp.validate()
+    if issues:
+        raise ConfigError("; ".join(issues))
+    return exp
+
+
+def morris_task(state: DashboardState, body: Mapping[str, Any]) -> Callable[[], dict[str, Any]]:
+    from simulsi.analysis.sensitivity import morris_screening
+
+    model = _with_duration(state.model(str(body.get("model", ""))), body.get("duration"))
+    raw = body.get("ranges")
+    if not isinstance(raw, dict) or not raw:
+        raise ConfigError("ranges must map parameters to [low, high]")
+    ranges = {str(k): (float(v[0]), float(v[1])) for k, v in raw.items()}
+    r = int(body.get("r", 10))
+    _check_runs(r * (len(ranges) + 1))
+    outputs = _outputs(body, model)
+    fixed = dict(body.get("base") or {})
+    model.resolve({**fixed, **{k: lo for k, (lo, _) in ranges.items()}})  # fail fast
+
+    def run() -> dict[str, Any]:
+        res = morris_screening(model, ranges, r, outputs=outputs, seed=int(body.get("seed", 0)),
+                               fixed=fixed)
+        return {"method": "morris", "rows": res.to_dicts(), "info": res.info}
+
+    return run
+
+
+def montecarlo_task(state: DashboardState, body: Mapping[str, Any]) -> Callable[[], dict[str, Any]]:
+    import numpy as np
+
+    from simulsi.analysis.sensitivity import correlation_sensitivity
+    from simulsi.experiments.montecarlo import monte_carlo
+    from simulsi.randomness.distributions import as_distribution
+
+    model = _with_duration(state.model(str(body.get("model", ""))), body.get("duration"))
+    raw = body.get("inputs")
+    if not isinstance(raw, dict) or not raw:
+        raise ConfigError("inputs must map parameters to distribution specs")
+    inputs = {str(k): as_distribution(v) for k, v in raw.items()}
+    iterations = int(body.get("iterations", 100))
+    _check_runs(iterations)
+    outputs = _outputs(body, model)
+    sampling = str(body.get("sampling", "lhs"))
+    if sampling not in ("random", "lhs"):
+        raise ConfigError("sampling must be 'random' or 'lhs'")
+    fixed = dict(body.get("base") or {})
+
+    def run() -> dict[str, Any]:
+        mc = monte_carlo(model, inputs, iterations, seed=int(body.get("seed", 0)), fixed=fixed,
+                         sampling=sampling)  # type: ignore[arg-type]
+        out: dict[str, Any] = {}
+        for name in outputs:
+            if name not in mc.outputs:
+                raise KeyError(f"model produced no metric {name!r}")
+            x = mc.outputs[name]
+            qs = np.nanquantile(x, [0.05, 0.25, 0.5, 0.75, 0.95]).tolist()
+            out[name] = {
+                "summary": summarize(x).to_dict(),
+                "quantiles": dict(zip(["p5", "p25", "p50", "p75", "p95"], qs, strict=True)),
+                "values": x[:: max(1, len(x) // 2000)].tolist(),
+            }
+        sens = correlation_sensitivity(mc, outputs, methods=("spearman", "src"))
+        return {"iterations": iterations, "sampling": sampling, "outputs": out,
+                "sensitivity": sens.to_dicts()}
+
+    return run
 
 
 # -- HTTP handler ------------------------------------------------------------------------
@@ -292,6 +411,12 @@ def make_handler(state: DashboardState, allowed_hosts: set[str]) -> type[BaseHTT
                     body = json.dumps(to_jsonable(state.get(parts[1]).to_dict()), indent=2, allow_nan=False)
                     self._send(200, body.encode(), "application/json",
                                {"Content-Disposition": f'attachment; filename="{parts[1]}-experiment.json"'})
+                elif len(parts) == 3 and parts[0] == "results" and parts[2] == "report.html":
+                    page = state.get(parts[1]).report(
+                        baseline=q.get("baseline"), confidence=float(q.get("confidence", 0.95))
+                    )
+                    self._send(200, page.encode("utf-8"), "text/html; charset=utf-8",
+                               {"Content-Disposition": f'attachment; filename="{parts[1]}-report.html"'})
                 elif len(parts) == 3 and parts[0] == "results" and parts[2] == "export.csv":
                     data = csv_text(state.get(parts[1]).rows()).encode("utf-8")
                     self._send(200, data, "text/csv; charset=utf-8",
@@ -307,6 +432,16 @@ def make_handler(state: DashboardState, allowed_hosts: set[str]) -> type[BaseHTT
             if path == "/api/run":
                 exp = build_experiment(state, body)
                 jid = state.start_job(exp, f"dashboard run ({exp.model.name})")
+                self._json(state.job(jid), HTTPStatus.ACCEPTED)
+            elif path == "/api/grid":
+                exp = build_grid(state, body)
+                jid = state.start_job(exp, f"grid sweep ({exp.model.name})")
+                self._json(state.job(jid), HTTPStatus.ACCEPTED)
+            elif path == "/api/sensitivity":
+                jid = state.start_task("sensitivity", morris_task(state, body))
+                self._json(state.job(jid), HTTPStatus.ACCEPTED)
+            elif path == "/api/montecarlo":
+                jid = state.start_task("montecarlo", montecarlo_task(state, body))
                 self._json(state.job(jid), HTTPStatus.ACCEPTED)
             elif path == "/api/trace":
                 model = state.model(str(body.get("model", "")))

@@ -78,6 +78,25 @@ save_figure(plot_comparison(cmp, relative=True), "comparison.png")   # % change 
 `plot_sensitivity(result)` draws a tornado chart from any
 `SensitivityResult`.
 
+## HTML reports and notebooks
+
+`result.report("report.html")` writes a single self-contained HTML file (no
+JavaScript, no external resources): provenance, scenario definitions,
+summaries with confidence intervals, a chart per metric, differences from the
+baseline with adjusted p-values, failed replications and a reporting
+checklist. `simulsi report results/my-study -o report.html` does the same
+from saved results, and the dashboard has an *HTML report* button.
+
+```python
+html = exp.report(metrics=["resource.server.wait.mean"], adjust="holm")
+print(len(html) > 0)
+```
+
+In Jupyter, results display as tables: `ExperimentResult`,
+`SimulationResult`, `Comparison`, `SensitivityResult`, `MonteCarloResult`,
+`FitReport`, `SelectionResult` and `OptimizationResult` all implement
+`_repr_html_`.
+
 ## From the command line
 
 ```bash
@@ -103,10 +122,20 @@ The dashboard lets you:
 2. view parameters, provenance and per-scenario summaries with CIs;
 3. run built-in models and models loaded with `simulsi ui --model file.py`
    with your own parameters, scenarios, replications and seed;
-4. compare scenarios against a baseline (differences and CIs);
+4. compare scenarios against a baseline (differences, CIs, multiple-comparison
+   adjustment);
 5. inspect any metric's per-replication distribution and convergence;
-6. view an event timeline, queue lengths and resource utilization of a traced run;
-7. export results as JSON or CSV.
+6. **explore** a model: grid sweeps (full factorial, opened in a *Response*
+   tab that plots a metric against a parameter with CIs, one line per value
+   of another parameter), Morris sensitivity screening, and Monte Carlo over
+   uncertain inputs with output distributions and Spearman correlations;
+7. trace a single run and **replay** it: a time slider (or Play) shows busy
+   and idle units, waiting entities, queue and container levels and the
+   latest events at each moment, next to the full event log;
+8. export results as JSON, CSV or an HTML report.
+
+Runs, grid sweeps and analyses run as background jobs, so the page stays
+responsive and shows progress.
 
 Building it from source needs Node 20+: `cd web/frontend && npm ci && npm run build`.
 Wheels built in CI include the compiled dashboard.

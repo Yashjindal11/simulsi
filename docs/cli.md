@@ -8,6 +8,7 @@ simulsi experiment CONFIG [-r N] [-w N] [--seed N] [-o DIR] [--checkpoint FILE] 
 simulsi analyze RESULTS [-m METRIC ...] [--baseline NAME] [--confidence C] [--precision P] [--adjust METHOD] [--json]
 simulsi warmup TARGET [-p KEY=VALUE ...] [--series KEY] [-r N] [--duration T] [--bins N] [--json]
 simulsi fit FILE [--column NAME] [--candidates NAME ...] [--criterion aic|bic|ks] [--json]
+simulsi report RESULTS [-o report.html] [-m METRIC ...] [--baseline NAME] [--adjust METHOD] [--title T]
 simulsi benchmark [--sizes N ...] [--workers N ...] [--replications N] [--no-memory] [--json]
 simulsi visualize TARGET [-o DIR] [-m METRIC ...] [--backend matplotlib|plotly] [--format png|svg|pdf]
 simulsi ui [RESULTS ...] [--model REF ...] [--host H] [--port P] [--no-browser]
@@ -49,6 +50,8 @@ Parameters given with `-p key=value` are parsed as YAML scalars, so
 * **fit** fits input distributions to a CSV column or a text file of
   numbers, ranks them (AIC, BIC or KS) and prints the best one as a config
   spec you can paste into `experiment.yaml`.
+* **report** writes a self-contained HTML report of saved results
+  (provenance, summaries, charts, comparisons).
 * **benchmark** measures engine throughput (10k / 100k / 1M events),
   process-based model throughput and parallel experiment speed on your
   machine, with tracemalloc peak memory.

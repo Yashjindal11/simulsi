@@ -4,6 +4,7 @@ import { StepChart, Timeline } from "../charts";
 import { fmt } from "../format";
 import type { Trace } from "../types";
 import { Loading, Select } from "./common";
+import { Replay } from "./Replay";
 import { ParamForm, toParams, useModels } from "./Run";
 
 export function TraceView() {
@@ -72,6 +73,7 @@ export function TraceView() {
             {trace.log_dropped > 0 && ` · log capped (${trace.log_dropped.toLocaleString()} records dropped)`}
           </p>
           {trace.warnings.map((w) => <div key={w} className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800">{w}</div>)}
+          <Replay trace={trace} />
           <div className="grid gap-4 xl:grid-cols-2">
             <section className="card">
               <h3 className="mb-2 font-semibold">Queue lengths</h3>

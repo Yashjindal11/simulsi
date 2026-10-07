@@ -7,6 +7,32 @@ export interface Job {
   total: number;
   result_id: string | null;
   error: string | null;
+  kind?: string;
+  output?: unknown;
+}
+
+export interface SensitivityRowT {
+  parameter: string;
+  output: string;
+  method: string;
+  value: Num;
+  ci_low: Num;
+  ci_high: Num;
+  setting: string;
+  detail: string;
+}
+
+export interface MorrisOutput {
+  method: "morris";
+  rows: SensitivityRowT[];
+  info: { r: number; levels: number; evaluations: number };
+}
+
+export interface MonteCarloOutput {
+  iterations: number;
+  sampling: string;
+  outputs: Record<string, { summary: { n: number; mean: Num; std: Num; ci_low: Num; ci_high: Num }; quantiles: Record<string, Num>; values: Num[] }>;
+  sensitivity: SensitivityRowT[];
 }
 
 export interface ResultIndex {

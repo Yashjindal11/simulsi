@@ -231,3 +231,49 @@ export function Timeline({ points, endTime }: { points: { t: number; kind: strin
     </svg>
   );
 }
+
+export interface CurvePoint {
+  x: number;
+  y: number | null;
+  lo: number | null;
+  hi: number | null;
+}
+
+/** Lines of means against a numeric x, with confidence-interval whiskers; one line per group. */
+export function LineCI({ curves, height = 260, xLabel, yLabel }: { curves: { name: string; points: CurvePoint[] }[]; height?: number; xLabel?: string; yLabel?: string }) {
+  const pts = curves.flatMap((c) => c.points);
+  const ys = pts.flatMap((p) => [p.y, p.lo, p.hi]).filter((v): v is number => v !== null && Number.isFinite(v));
+  if (!pts.length || !ys.length) return <p className="text-sm text-slate-500">Nothing to plot.</p>;
+  const x0 = Math.min(...pts.map((p) => p.x));
+  const x1 = Math.max(...pts.map((p) => p.x));
+  const yMin = Math.min(...ys);
+  const yMax = Math.max(...ys);
+  const pad = (yMax - yMin) * 0.08 || 1;
+  const sx = scale(x0, x1 === x0 ? x0 + 1 : x1, PAD.l + 8, W - PAD.r - 8);
+  const sy = scale(yMin - pad, yMax + pad, height - PAD.b, PAD.t);
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${height}`} className="w-full">
+        <Axes x0={x0} x1={x1 === x0 ? x0 + 1 : x1} y0={yMin - pad} y1={yMax + pad} h={height} xLabel={xLabel} yLabel={yLabel} />
+        {curves.map((c, i) => {
+          const sorted = [...c.points].sort((a, b) => a.x - b.x).filter((p) => p.y !== null);
+          const d = sorted.map((p, j) => `${j ? "L" : "M"}${sx(p.x)},${sy(p.y as number)}`).join("");
+          return (
+            <g key={c.name} stroke={color(i)}>
+              <path d={d} fill="none" strokeWidth={1.8} />
+              {sorted.map((p) => (
+                <g key={p.x}>
+                  <circle cx={sx(p.x)} cy={sy(p.y as number)} r={3} fill={color(i)} />
+                  {p.lo !== null && p.hi !== null && (
+                    <path d={`M${sx(p.x) - 4},${sy(p.lo)}h8M${sx(p.x)},${sy(p.lo)}V${sy(p.hi)}M${sx(p.x) - 4},${sy(p.hi)}h8`} strokeWidth={1} />
+                  )}
+                </g>
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+      {curves.length > 1 && <Legend names={curves.map((c) => c.name)} />}
+    </div>
+  );
+}

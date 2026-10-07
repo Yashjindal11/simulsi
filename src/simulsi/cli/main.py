@@ -434,6 +434,22 @@ def cmd_warmup(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_report(args: argparse.Namespace) -> int:
+    from simulsi.experiments.experiment import ExperimentResult
+
+    res = ExperimentResult.load(args.results)
+    res.report(
+        args.output,
+        metrics=args.metric,
+        baseline=args.baseline,
+        confidence=args.confidence,
+        adjust=args.adjust,
+        title=args.title,
+    )
+    _print(f"wrote {args.output}")
+    return EXIT_OK
+
+
 def cmd_fit(args: argparse.Namespace) -> int:
     from simulsi.randomness.fitting import CANDIDATES, fit_distribution, load_values
 
@@ -566,6 +582,16 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--criterion", choices=["aic", "bic", "ks"], default="aic")
     s.add_argument("--json", action="store_true")
     s.set_defaults(func=cmd_fit)
+
+    s = sub.add_parser("report", help="write a self-contained HTML report of saved results")
+    s.add_argument("results", help="experiment.json or the directory containing it")
+    s.add_argument("--output", "-o", default="report.html")
+    s.add_argument("--metric", "-m", action="append", help="metrics to include (repeatable)")
+    s.add_argument("--baseline")
+    s.add_argument("--confidence", type=float, default=0.95)
+    s.add_argument("--adjust", choices=["none", "bonferroni", "holm", "bh"], default="holm")
+    s.add_argument("--title")
+    s.set_defaults(func=cmd_report)
 
     s = sub.add_parser("benchmark", help="measure engine and experiment throughput on this machine")
     s.add_argument("--sizes", type=int, nargs="+", help="event counts (default 10k 100k 1M)")

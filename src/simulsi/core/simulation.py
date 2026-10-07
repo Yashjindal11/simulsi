@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import math
 import time as _wall
 from collections.abc import Callable, Generator, Iterable
@@ -58,6 +59,17 @@ class SimulationResult:
     @property
     def duration(self) -> float:
         return self.end_time - self.start_time
+
+    def _repr_html_(self) -> str:
+        from simulsi.analysis.report import html_table
+
+        rows = [{"metric": k, "value": v} for k, v in sorted(self.metrics.items())]
+        caption = (
+            f"Simulation run: seed {self.seed}, t = {self.start_time:g} to {self.end_time:g}, "
+            f"{self.events_processed:,} events"
+        )
+        warn = "".join(f"<p><b>warning:</b> {html.escape(w)}</p>" for w in self.warnings)
+        return warn + html_table(rows, caption=caption)
 
     def to_dict(self) -> dict[str, Any]:
         return {

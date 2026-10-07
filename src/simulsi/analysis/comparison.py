@@ -70,6 +70,17 @@ class Comparison:
         raise KeyError((metric, scenario))
 
     def format(self) -> str:
+        return format_table(self._display_rows())
+
+    def _repr_html_(self) -> str:
+        from simulsi.analysis.report import html_table
+
+        return html_table(
+            self._display_rows(),
+            caption=f"Comparison ({self.confidence:.0%} CI, adjust={self.adjust})",
+        )
+
+    def _display_rows(self) -> list[dict[str, Any]]:
         rows = []
         for r in self.rows:
             row: dict[str, Any] = {
@@ -86,7 +97,7 @@ class Comparison:
                 row["p_adj"] = r.p_adjusted
             row["sig"] = "*" if r.significant else ""
             rows.append(row)
-        return format_table(rows)
+        return rows
 
     def __repr__(self) -> str:
         return f"Comparison({len(self.rows)} rows, confidence={self.confidence})"

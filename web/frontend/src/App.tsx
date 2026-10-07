@@ -3,23 +3,31 @@ import { api } from "./api";
 import type { ResultIndex } from "./types";
 import { CompareView } from "./pages/Compare";
 import { DistributionsView } from "./pages/Distributions";
+import { ExploreView } from "./pages/Explore";
 import { Home } from "./pages/Home";
 import { OverviewView } from "./pages/Overview";
+import { ResponseView } from "./pages/Response";
 import { RunView } from "./pages/Run";
 import { TraceView } from "./pages/Trace";
+
+type Tab = "overview" | "compare" | "distributions" | "response";
 
 type Route =
   | { page: "home" }
   | { page: "run" }
+  | { page: "explore" }
   | { page: "trace" }
-  | { page: "result"; id: string; tab: "overview" | "compare" | "distributions" };
+  | { page: "result"; id: string; tab: Tab };
+
+const TABS: Tab[] = ["overview", "compare", "distributions", "response"];
 
 function parse(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("?")[0].split("/").filter(Boolean);
   if (parts[0] === "run") return { page: "run" };
+  if (parts[0] === "explore") return { page: "explore" };
   if (parts[0] === "trace") return { page: "trace" };
   if (parts[0] === "result" && parts[1]) {
-    const tab = parts[2] === "compare" || parts[2] === "distributions" ? parts[2] : "overview";
+    const tab = (TABS as string[]).includes(parts[2]) ? (parts[2] as Tab) : "overview";
     return { page: "result", id: parts[1], tab };
   }
   return { page: "home" };
@@ -68,7 +76,8 @@ export default function App() {
         <nav className="space-y-1">
           {navItem("Home & load", "/", route.page === "home")}
           {navItem("Run experiment", "/run", route.page === "run")}
-          {navItem("Trace a run", "/trace", route.page === "trace")}
+          {navItem("Explore (grid, sensitivity, MC)", "/explore", route.page === "explore")}
+          {navItem("Trace & replay a run", "/trace", route.page === "trace")}
         </nav>
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Experiments</p>
@@ -88,6 +97,7 @@ export default function App() {
         {error && <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
         {route.page === "home" && <Home results={results} onOpened={opened} />}
         {route.page === "run" && <RunView onDone={opened} />}
+        {route.page === "explore" && <ExploreView onDone={(id) => { refresh(); go(`/result/${id}/response`); }} />}
         {route.page === "trace" && <TraceView />}
         {route.page === "result" && (
           <ResultShell id={route.id} tab={route.tab} />
@@ -97,8 +107,8 @@ export default function App() {
   );
 }
 
-function ResultShell({ id, tab }: { id: string; tab: "overview" | "compare" | "distributions" }) {
-  const tabs: [typeof tab, string][] = [["overview", "Overview"], ["compare", "Compare scenarios"], ["distributions", "Distributions"]];
+function ResultShell({ id, tab }: { id: string; tab: Tab }) {
+  const tabs: [Tab, string][] = [["overview", "Overview"], ["compare", "Compare scenarios"], ["distributions", "Distributions"], ["response", "Response"]];
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
@@ -108,12 +118,14 @@ function ResultShell({ id, tab }: { id: string; tab: "overview" | "compare" | "d
           </a>
         ))}
         <span className="flex-1" />
+        <a className="btn-ghost" href={api.reportUrl(id)} download>HTML report</a>
         <a className="btn-ghost" href={api.exportUrl(id, "json")} download>Export JSON</a>
         <a className="btn-ghost" href={api.exportUrl(id, "csv")} download>Export CSV</a>
       </div>
       {tab === "overview" && <OverviewView id={id} />}
       {tab === "compare" && <CompareView id={id} />}
       {tab === "distributions" && <DistributionsView id={id} />}
+      {tab === "response" && <ResponseView id={id} />}
     </div>
   );
 }

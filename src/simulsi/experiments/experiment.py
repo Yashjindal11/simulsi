@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import atexit
 import concurrent.futures as cf
+import html
 import json
 import math
 import pickle
@@ -623,6 +624,46 @@ class ExperimentResult:
         )
 
     # -- export ----------------------------------------------------------------
+
+    def report(
+        self,
+        path: str | Path | None = None,
+        *,
+        metrics: Iterable[str] | None = None,
+        baseline: str | None = None,
+        confidence: float = 0.95,
+        adjust: str = "holm",
+        title: str | None = None,
+    ) -> str:
+        """A self-contained HTML report; written to ``path`` if given. Returns the HTML."""
+        from simulsi.analysis.html_report import experiment_report, write_report
+
+        text = experiment_report(
+            self,
+            metrics=None if metrics is None else list(metrics),
+            baseline=baseline,
+            confidence=confidence,
+            adjust=adjust,
+            title=title,
+        )
+        if path is not None:
+            write_report(text, path)
+        return text
+
+    def _repr_html_(self) -> str:
+        from simulsi.analysis.html_report import _default_metrics
+        from simulsi.analysis.report import html_table
+
+        md = self.metadata
+        head = (
+            f"<p><b>{html.escape(md.name)}</b>: model {html.escape(md.model_name)}, "
+            f"{len(self.scenarios)} scenario(s) x {md.replications} replications, "
+            f"seed {md.seed}</p>"
+        )
+        rows = self.summary(_default_metrics(self, 12))
+        return head + html_table(
+            rows, ["scenario", "metric", "n", "mean", "ci_low", "ci_high", "std"]
+        )
 
     def rows(self) -> list[dict[str, Any]]:
         """Long-form-friendly wide rows: one per replication with metric columns."""

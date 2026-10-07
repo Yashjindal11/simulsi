@@ -118,6 +118,29 @@ class MonteCarloResult:
             "metadata": self.metadata,
         }
 
+    def _repr_html_(self) -> str:
+        from simulsi.analysis.report import html_table
+
+        rows = []
+        for name in list(self.outputs)[:20]:
+            x = self.outputs[name]
+            s = summarize(x)
+            p5, p95 = (float(v) for v in np.nanquantile(x, [0.05, 0.95]))
+            rows.append(
+                {
+                    "output": name,
+                    "mean": s.mean,
+                    "ci_low": s.ci_low,
+                    "ci_high": s.ci_high,
+                    "p5": p5,
+                    "median": s.median,
+                    "p95": p95,
+                }
+            )
+        return html_table(
+            rows, caption=f"Monte Carlo: {self.iterations} iterations ({self.sampling})"
+        )
+
 
 def _latin_hypercube(dist: Distribution[Any], stream: RandomStream, n: int) -> npt.NDArray[Any]:
     """Stratified sample via the inverse CDF (only for distributions scipy can invert)."""

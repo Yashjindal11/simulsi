@@ -97,6 +97,25 @@ class SensitivityResult:
     def __repr__(self) -> str:
         return f"SensitivityResult({len(self.rows)} rows)"
 
+    def _repr_html_(self) -> str:
+        from simulsi.analysis.report import html_table
+
+        return html_table(
+            [
+                {
+                    "parameter": r.parameter,
+                    "output": r.output,
+                    "method": r.method,
+                    "value": r.value,
+                    "ci_low": r.ci_low,
+                    "ci_high": r.ci_high,
+                    "setting": r.setting,
+                }
+                for r in self.ranking()
+            ],
+            caption="Sensitivity (largest effects first)",
+        )
+
 
 def _run_metrics(
     model: Model, params: Mapping[str, Any], outputs: Sequence[str], reps: int, seed: int

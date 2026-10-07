@@ -65,6 +65,15 @@ class OptimizationResult:
         lines += [f"note: {n}" for n in self.notes]
         return "\n".join(lines)
 
+    def _repr_html_(self) -> str:
+        from simulsi.analysis.report import html_table
+
+        caption = (
+            f"{self.method} search, {self.evaluations} evaluations; best "
+            f"{self.metric or 'objective'} = {self.best_value:.6g} at {self.best_parameters}"
+        )
+        return html_table([{**e.parameters, "value": e.value} for e in self.top()], caption=caption)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "method": self.method,

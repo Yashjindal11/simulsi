@@ -15,6 +15,12 @@ All notable changes to this project are documented here. The format follows
   ranking and selection.
 - Gaussian-process surrogates: `GaussianProcess`, `fit_surrogate`, `Surrogate`
   (leave-one-out accuracy, no extrapolation).
+- Self-contained HTML reports: `ExperimentResult.report()`, `simulsi report`
+  and a dashboard download.
+- Jupyter display (`_repr_html_`) for results, comparisons, sensitivity,
+  Monte Carlo, fits, selection and optimisation.
+- Dashboard: an *Explore* page (grid sweeps, Morris screening, Monte Carlo),
+  a *Response* tab for multi-scenario results, and replay of traced runs.
 
 ## [0.3.0] - 2026-10-06
 

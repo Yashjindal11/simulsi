@@ -67,6 +67,25 @@ class SelectionResult:
         text = head + "\n" + format_table(rows)
         return text + (f"\nnote: {self.note}" if self.note else "")
 
+    def _repr_html_(self) -> str:
+        import html
+
+        from simulsi.analysis.report import html_table
+
+        rows = [
+            {
+                "scenario": n,
+                "mean": self.means[n],
+                "replications": self.replications[n],
+                "status": "selected"
+                if n == self.best
+                else ("eliminated" if n in self.eliminated else "in contention"),
+            }
+            for n in self.means
+        ]
+        note = f"<p>{html.escape(self.note)}</p>" if self.note else ""
+        return html_table(rows, caption=f"Selected: {self.best} (KN, {self.confidence:g})") + note
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "best": self.best,

@@ -122,6 +122,22 @@ class FitReport:
         lines += [f"note: {n}" for n in self.notes]
         return "\n".join(lines)
 
+    def _repr_html_(self) -> str:
+        from simulsi.analysis.report import html_table
+
+        rows = [
+            {
+                "distribution": r.name,
+                "AIC": r.aic,
+                "BIC": r.bic,
+                "KS": r.ks_statistic,
+                "KS p": r.ks_pvalue,
+                "parameters": ", ".join(f"{k}={v:.4g}" for k, v in r.params.items()),
+            }
+            for r in self.results
+        ]
+        return html_table(rows, caption=f"Distribution fits (n={self.n}, by {self.criterion})")
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "n": self.n,

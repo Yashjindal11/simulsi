@@ -29,8 +29,25 @@ export const api = {
       `/api/results/${encodeURIComponent(id)}/compare?baseline=${encodeURIComponent(baseline)}&metrics=${encodeURIComponent(metrics.join(","))}&confidence=${confidence}&adjust=${adjust}`,
     ),
   run: (body: unknown) => post<Job>("/api/run", body),
+  grid: (body: unknown) => post<Job>("/api/grid", body),
+  sensitivity: (body: unknown) => post<Job>("/api/sensitivity", body),
+  montecarlo: (body: unknown) => post<Job>("/api/montecarlo", body),
   job: (id: string) => request<Job>(`/api/jobs/${encodeURIComponent(id)}`),
   trace: (body: unknown) => post<Trace>("/api/trace", body),
   upload: (experiment: unknown) => post<{ id: string }>("/api/results", experiment),
   exportUrl: (id: string, kind: "json" | "csv") => `/api/results/${encodeURIComponent(id)}/export.${kind}`,
+  reportUrl: (id: string) => `/api/results/${encodeURIComponent(id)}/report.html`,
 };
+
+/** Poll a background job until it finishes; reports progress on the way. */
+export async function waitForJob(job: Job, onProgress?: (j: Job) => void): Promise<Job> {
+  let current = job;
+  onProgress?.(current);
+  while (current.status === "running") {
+    await new Promise((r) => setTimeout(r, 400));
+    current = await api.job(current.id);
+    onProgress?.(current);
+  }
+  if (current.status === "error") throw new Error(current.error ?? "job failed");
+  return current;
+}

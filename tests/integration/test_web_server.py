@@ -158,3 +158,83 @@ def test_static_fallback_and_traversal(server: tuple[str, DashboardState]) -> No
     assert code == 200 and b"root:" not in body
     code, body = get(f"{base}/")
     assert code == 200 and (b"<html" in body.lower() or b"not built" in body)
+
+
+def _wait(base: str, jid: str) -> dict[str, Any]:
+    import time
+
+    job: dict[str, Any] = {}
+    for _ in range(600):
+        _, job = get(f"{base}/api/jobs/{jid}")
+        if job["status"] != "running":
+            break
+        time.sleep(0.05)
+    return job
+
+
+def test_grid_sensitivity_montecarlo_and_report(server: tuple[str, DashboardState]) -> None:
+    base, _ = server
+    code, out = post(
+        f"{base}/api/grid",
+        {
+            "model": "custom:short",
+            "factors": {"servers": [1, 2], "arrival_rate": [0.5, 0.8]},
+            "replications": 2,
+            "seed": 1,
+        },
+    )
+    assert code == 202 and out["total"] == 8
+    job = _wait(base, out["id"])
+    assert job["status"] == "done", job
+    _, detail = get(f"{base}/api/results/{job['result_id']}")
+    assert len(detail["scenarios"]) == 4
+    assert detail["parameters"]["servers=2,arrival_rate=0.8"]["servers"] == 2
+
+    code, out = post(
+        f"{base}/api/sensitivity",
+        {
+            "model": "custom:short",
+            "ranges": {"arrival_rate": [0.4, 0.8], "servers": [1, 3]},
+            "r": 3,
+            "outputs": ["resource.server.utilization"],
+        },
+    )
+    assert code == 202
+    job = _wait(base, out["id"])
+    assert job["status"] == "done", job
+    rows = job["output"]["rows"]
+    assert {r["method"] for r in rows} == {"morris-mu_star", "morris-mu", "morris-sigma"}
+
+    code, out = post(
+        f"{base}/api/montecarlo",
+        {
+            "model": "custom:short",
+            "iterations": 12,
+            "outputs": ["resource.server.utilization"],
+            "inputs": {"arrival_rate": {"distribution": "uniform", "low": 0.4, "high": 0.8}},
+        },
+    )
+    assert code == 202
+    job = _wait(base, out["id"])
+    assert job["status"] == "done", job
+    util = job["output"]["outputs"]["resource.server.utilization"]
+    assert len(util["values"]) == 12 and 0 < util["quantiles"]["p50"] < 1
+    assert job["output"]["sensitivity"]
+
+    for bad in (
+        ("/api/grid", {"model": "custom:short", "factors": {}}),
+        ("/api/sensitivity", {"model": "custom:short", "ranges": {}}),
+        ("/api/montecarlo", {"model": "custom:short", "inputs": {}}),
+        (
+            "/api/montecarlo",
+            {"model": "custom:short", "iterations": 10**6, "inputs": {"arrival_rate": 0.5}},
+        ),
+    ):
+        assert post(f"{base}{bad[0]}", bad[1])[0] == 400, bad
+
+    req = urllib.request.Request(f"{base}/api/results/r1/report.html")
+    with urllib.request.urlopen(req, timeout=30) as r:
+        page = r.read().decode()
+        assert r.headers["Content-Type"].startswith("text/html")
+        assert "attachment" in r.headers["Content-Disposition"]
+    assert "<svg" in page and "Differences from baseline" in page

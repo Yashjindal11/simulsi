@@ -1,7 +1,8 @@
-"""Plain-text tables for terminal output."""
+"""Tables for terminal output (plain text) and notebooks (HTML)."""
 
 from __future__ import annotations
 
+import html
 import math
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -44,3 +45,34 @@ def format_table(rows: Sequence[Mapping[str, Any]], columns: Sequence[str] | Non
     out = [line(cols), line(["-" * w for w in widths])]
     out += [line(row) for row in cells]
     return "\n".join(out)
+
+
+def html_table(
+    rows: Sequence[Mapping[str, Any]],
+    columns: Sequence[str] | None = None,
+    *,
+    caption: str | None = None,
+    max_rows: int = 200,
+) -> str:
+    """An HTML ``<table>`` (all text escaped), e.g. for Jupyter ``_repr_html_``."""
+    if not rows:
+        return "<p><em>(no rows)</em></p>"
+    cols = list(columns) if columns is not None else list(rows[0].keys())
+    esc = html.escape
+    out = ['<table class="simulsi">']
+    if caption:
+        out.append(f"<caption>{esc(caption)}</caption>")
+    out.append("<thead><tr>" + "".join(f"<th>{esc(str(c))}</th>" for c in cols) + "</tr></thead>")
+    out.append("<tbody>")
+    for r in rows[:max_rows]:
+        cells = []
+        for c in cols:
+            v = r.get(c, "")
+            num = isinstance(v, int | float) and not isinstance(v, bool)
+            style = ' style="text-align:right"' if num else ""
+            cells.append(f"<td{style}>{esc(fmt_value(v))}</td>")
+        out.append("<tr>" + "".join(cells) + "</tr>")
+    out.append("</tbody></table>")
+    if len(rows) > max_rows:
+        out.append(f"<p><em>{len(rows) - max_rows} more rows not shown</em></p>")
+    return "".join(out)
