@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Morris elementary-effects screening (`analysis.morris_screening`).
+- Ranking and selection with procedure KN (`analysis.select_best`).
+- Built-in optimisation: `optimization.optimize` with grid, Latin hypercube
+  and Bayesian (Gaussian process + expected improvement) search, confirmed by
+  ranking and selection.
+- Gaussian-process surrogates: `GaussianProcess`, `fit_surrogate`, `Surrogate`
+  (leave-one-out accuracy, no extrapolation).
+
 ## [0.3.0] - 2026-10-06
 
 ### Added

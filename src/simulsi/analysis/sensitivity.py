@@ -16,6 +16,10 @@ Methods implemented (all simple and well understood):
   and total-effect Sobol indices (Saltelli 2010 / Jansen estimators) with
   bootstrap confidence intervals. Captures interactions and non-linear
   effects at a cost of ``N * (d + 2)`` model evaluations.
+* :func:`morris_screening` - Morris elementary effects: a cheap global
+  screen (``r * (d + 1)`` evaluations) that separates negligible inputs from
+  important ones (``mu_star``) and flags non-linearity or interactions
+  (``sigma``). Use it to prune many inputs before a Sobol analysis.
 
 Correlation measures are cheap screening tools that miss interactions and
 non-monotonic effects; use Sobol indices when that matters.
@@ -269,8 +273,12 @@ def _evaluate_rows(
     vectorized: bool,
     seed: int,
     crn_period: int,
+    seed_index: Sequence[int] | None = None,
 ) -> dict[str, np.ndarray[Any, Any]]:
-    """Evaluate ``model`` on every row of ``inputs``. Row ``j`` uses seed index ``j % crn_period``."""
+    """Evaluate ``model`` on every row of ``inputs``.
+
+    Row ``j`` uses replication seed ``seed_index[j]`` if given, else ``j % crn_period``.
+    """
     if vectorized:
         if isinstance(model, Model):
             raise ValueError("vectorized=True is not available for simulation models")
@@ -287,7 +295,9 @@ def _evaluate_rows(
             **fixed,
             **{k: v[j].item() if hasattr(v[j], "item") else v[j] for k, v in inputs.items()},
         }
-        rep_seed = derive_seed(seed, "replication", j % crn_period)
+        rep_seed = derive_seed(
+            seed, "replication", seed_index[j] if seed_index is not None else j % crn_period
+        )
         if isinstance(model, Model):
             values: Any = model.simulate(params, seed=rep_seed).metrics
         elif wants_rng:
@@ -385,3 +395,121 @@ def sobol_indices(
                 )
             )
     return SensitivityResult(rows, info)
+
+
+def morris_screening(
+    model: Callable[..., Any] | Model,
+    ranges: Mapping[str, tuple[float, float]],
+    r: int = 20,
+    *,
+    levels: int = 4,
+    outputs: Sequence[str] | None = None,
+    seed: int = 0,
+    fixed: Mapping[str, Any] | None = None,
+    confidence: float = 0.95,
+    n_bootstrap: int = 500,
+) -> SensitivityResult:
+    """Morris elementary-effects screening over ``ranges`` (``{name: (low, high)}``).
+
+    Builds ``r`` random one-at-a-time trajectories on a ``levels``-level grid
+    (Morris 1991), each costing ``d + 1`` evaluations. Effects are measured
+    on inputs scaled to [0, 1], so they are comparable across parameters and
+    in output units. Per parameter and output it reports:
+
+    * ``morris-mu_star`` - mean absolute effect (Campolongo et al. 2007), the
+      importance measure, with a bootstrap CI over trajectories;
+    * ``morris-mu`` - mean signed effect (direction; can cancel out);
+    * ``morris-sigma`` - standard deviation of effects: large relative to
+      ``mu_star`` means non-linear effects or interactions.
+
+    Integer model parameters are rounded. For simulation models every point of
+    a trajectory uses the same replication seed (common random numbers).
+    """
+    if r < 2:
+        raise ValueError("r must be >= 2")
+    if levels < 2 or levels % 2:
+        raise ValueError("levels must be an even number >= 2")
+    names = list(ranges)
+    d = len(names)
+    if d == 0:
+        raise ValueError("need at least one parameter range")
+    lows = np.array([float(ranges[k][0]) for k in names])
+    highs = np.array([float(ranges[k][1]) for k in names])
+    if np.any(highs <= lows):
+        raise ValueError("every range needs low < high")
+    is_int = [
+        isinstance(model, Model) and k in model.parameters and model.parameters[k].kind == "int"
+        for k in names
+    ]
+    rng = np.random.default_rng(derive_seed(seed, "morris"))
+    delta = levels / (2 * (levels - 1))
+    starts = np.arange(levels // 2) / (levels - 1)  # grid points x with x + delta <= 1
+    points = np.empty((r, d + 1, d))
+    moved = np.empty((r, d), dtype=int)
+    steps = np.empty((r, d))
+    for t in range(r):
+        x = rng.choice(starts, size=d)
+        down = rng.random(d) < 0.5
+        x[down] += delta  # start at the top for factors that will step down
+        points[t, 0] = x
+        order = rng.permutation(d)
+        for k, i in enumerate(order):
+            step = -delta if down[i] else delta
+            x = x.copy()
+            x[i] += step
+            points[t, k + 1] = x
+            moved[t, k] = i
+            steps[t, k] = step
+    unit = points.reshape(r * (d + 1), d)
+    real = lows + unit * (highs - lows)
+    inputs: dict[str, np.ndarray[Any, Any]] = {}
+    for j, pname in enumerate(names):
+        col = real[:, j]
+        inputs[pname] = np.round(col).astype(int) if is_int[j] else col
+    y_all = _evaluate_rows(
+        model,
+        inputs,
+        r * (d + 1),
+        fixed=dict(fixed or {}),
+        vectorized=False,
+        seed=seed,
+        crn_period=r * (d + 1),
+        seed_index=[row // (d + 1) for row in range(r * (d + 1))],
+    )
+    boot = np.random.default_rng(derive_seed(seed, "morris-bootstrap")).integers(
+        0, r, size=(n_bootstrap, r)
+    )
+    alpha = (1 - confidence) / 2
+    rows: list[SensitivityRow] = []
+    for o in outputs if outputs is not None else list(y_all):
+        if o not in y_all:
+            raise KeyError(f"model produced no output {o!r}")
+        y = y_all[o].reshape(r, d + 1)
+        ee = np.empty((r, d))
+        for t in range(r):
+            for k in range(d):
+                ee[t, moved[t, k]] = (y[t, k + 1] - y[t, k]) / steps[t, k]
+        mu = np.nanmean(ee, axis=0)
+        mu_star = np.nanmean(np.abs(ee), axis=0)
+        sigma = np.nanstd(ee, axis=0, ddof=1)
+        boot_star = np.nanmean(np.abs(ee)[boot], axis=1)  # (B, d)
+        for i, name in enumerate(names):
+            lo, hi = np.nanquantile(boot_star[:, i], [alpha, 1 - alpha])
+            setting = f"range=[{lows[i]:g}, {highs[i]:g}]"
+            rows += [
+                SensitivityRow(
+                    name, o, "morris-mu_star", float(mu_star[i]), float(lo), float(hi), setting
+                ),
+                SensitivityRow(name, o, "morris-mu", float(mu[i]), setting=setting),
+                SensitivityRow(
+                    name,
+                    o,
+                    "morris-sigma",
+                    float(sigma[i]),
+                    setting=setting,
+                    detail=f"sigma/mu_star={sigma[i] / mu_star[i]:.2f}" if mu_star[i] > 0 else "",
+                ),
+            ]
+    return SensitivityResult(
+        rows, {"r": r, "levels": levels, "evaluations": r * (d + 1), "delta": delta}
+    )

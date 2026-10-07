@@ -155,9 +155,13 @@ The engine is pure Python. Measured numbers are in
 
 ## Known limitations
 
-* No continuous/system-dynamics integration; no conditional (state-based)
-  events beyond signals and polling.
+* No continuous/system-dynamics integration. State-based waits
+  (`sim.wait_until`) re-check their predicate after every event, so many
+  pending predicates slow a run down.
 * Flow and state graphs are observed from a run, not derived statically.
 * Sobol indices assume independent inputs; correlated inputs need other methods.
+* The built-in optimiser and Gaussian-process surrogate are meant for
+  small boxes (a handful of parameters, tens to a few hundred runs); the GP
+  costs O(n^3) in the number of runs.
 * Checkpoint restore replays the run, so it costs about the time to reach the
   checkpoint.

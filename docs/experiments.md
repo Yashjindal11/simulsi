@@ -289,6 +289,23 @@ print(sobol.format())   # x3 has ~0 first-order but ~0.24 total effect: it acts 
 `sobol_indices` also accepts a simulation `Model` (every design row uses
 common random numbers); keep `n` modest, because each row is a simulation run.
 
+**Morris screening** is the cheap first pass when there are many inputs: `r`
+random one-at-a-time trajectories cost `r * (d + 1)` runs.
+
+```python
+from simulsi.analysis import morris_screening
+
+screen = morris_screening(model, {"arrival_rate": (1.0, 1.8), "service_rate": (0.9, 1.1),
+                                  "servers": (2, 4)},
+                          r=8, outputs=outputs, seed=2)
+print(screen.format())
+```
+
+`morris-mu_star` (mean absolute effect, inputs scaled to [0, 1]) ranks
+importance; a `morris-sigma` comparable to `mu_star` signals non-linearity or
+interactions. Drop the inputs with negligible `mu_star`, then run Sobol on
+the rest.
+
 ## Cost models
 
 ```python
@@ -308,10 +325,74 @@ print(result.format_summary(["cost.total", "cost.profit"]))
 
 Cost models also load from configuration (`cost: {terms: [...]}`).
 
-## Optimisation interface
+## Choosing the best scenario
 
-SimulSI deliberately ships no optimiser. `Objective` turns a model into a
-function any optimiser can call:
+With several alternatives, `select_best` (procedure KN, Kim and Nelson 2001)
+keeps adding replications only to the scenarios still in contention and
+stops once one is best with the requested confidence:
+
+```python
+from simulsi.analysis import select_best
+
+choice = select_best(
+    model,
+    {f"servers={c}": {"servers": c, "arrival_rate": 1.5} for c in (2, 3, 4)},
+    "resource.server.wait.mean",
+    indifference=0.05,        # differences below this are treated as ties
+    confidence=0.95,
+)
+print(choice.format())
+```
+
+The guarantee: with probability at least `confidence`, the selected scenario
+is the best or within `indifference` of it. Clearly worse scenarios drop out
+after a few runs, so this is usually much cheaper than running every scenario
+to the same precision. If `max_replications` is reached first, the result
+says so (`converged=False`).
+
+## Optimisation and surrogates
+
+`optimize` searches a parameter box and then confirms the winner:
+
+```python
+from simulsi.optimization import optimize
+
+best = optimize(
+    model, None, {"servers": (1, 6)},
+    fixed={"arrival_rate": 1.5}, method="bayes", budget=6, replications=3,
+    transform=lambda m: costs.calculate(m).total_cost,
+)
+print(best.format())
+```
+
+* `method="grid"` tries every combination (integers: every value; floats:
+  `grid_levels` points), `"random"` a Latin hypercube of `budget` points, and
+  `"bayes"` fits a Gaussian process after a small initial design and picks
+  each next point by expected improvement.
+* Every candidate is the mean of `replications` runs with shared seeds.
+* With a `metric` and `indifference=...`, the best `confirm_top` candidates
+  are re-run with new seeds and compared by `select_best`, so the reported
+  optimum is not just the luckiest estimate.
+
+A surrogate (metamodel) approximates a model from a few dozen runs:
+
+```python
+from simulsi.optimization import fit_surrogate
+
+surface = fit_surrogate(model, {"arrival_rate": (1.0, 1.8), "servers": (2, 4)},
+                        ["resource.server.wait.mean"], n=20)
+print(surface.accuracy())        # leave-one-out R^2; below ~0.8, add runs
+mean, sd = surface.predict({"arrival_rate": 1.4, "servers": 3}, return_std=True)
+print(mean, sd)
+```
+
+Predictions are refused outside the fitted ranges. Treat them as a guide to
+where to run real experiments, not as results.
+
+## Plugging in other optimisers
+
+`Objective` turns a model into a function any optimiser can call
+(scipy.optimize, OR-Tools, evolutionary or Bayesian libraries):
 
 ```python
 from scipy.optimize import minimize_scalar

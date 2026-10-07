@@ -66,7 +66,8 @@ assert replay.metrics["resource.server.wait.mean"] == rec.metrics["resource.serv
   metrics that matter, or adjust: `compare(..., adjust="holm")`
   (`simulsi analyze --adjust holm`).
 * **Optimising over noise flatters the winner.** Re-evaluate the selected
-  design with fresh seeds before reporting it.
+  design with fresh seeds before reporting it (`optimize(...,
+  indifference=...)` does this with `select_best`).
 
 ## Design of experiments
 
@@ -76,6 +77,12 @@ assert replay.metrics["resource.server.wait.mean"] == rec.metrics["resource.serv
   uncertain inputs, followed by `correlation_sensitivity` (Spearman, SRC
   with R^2).
 * `finite_difference(...)` - local gradients with common random numbers.
+* `morris_screening(...)` - cheap global screening of many inputs, then
+  `sobol_indices(...)` on the ones that matter.
+* `select_best(...)` - choose among alternatives with a probability of
+  correct selection guarantee (procedure KN).
+* `fit_surrogate(...)` / `optimize(...)` - Latin hypercube designs, Gaussian
+  process metamodels and Bayesian optimisation.
 
 ## Reporting checklist
 
@@ -94,3 +101,13 @@ assert replay.metrics["resource.server.wait.mean"] == rec.metrics["resource.serv
 * J. Banks et al., *Discrete-Event System Simulation*, 5th ed., Pearson, 2010.
 * B. L. Nelson, *Foundations and Methods of Stochastic Simulation*, 2nd ed., Springer, 2021.
 * A. Saltelli et al., *Global Sensitivity Analysis: The Primer*, Wiley, 2008.
+* M. D. Morris, "Factorial sampling plans for preliminary computational
+  experiments", *Technometrics* 33(2), 1991; F. Campolongo, J. Cariboni and
+  A. Saltelli, "An effective screening design for sensitivity analysis of
+  large models", *Environmental Modelling & Software* 22(10), 2007.
+* S.-H. Kim and B. L. Nelson, "A fully sequential procedure for
+  indifference-zone selection in simulation", *ACM TOMACS* 11(3), 2001.
+* C. E. Rasmussen and C. K. I. Williams, *Gaussian Processes for Machine
+  Learning*, MIT Press, 2006; D. R. Jones, M. Schonlau and W. J. Welch,
+  "Efficient global optimization of expensive black-box functions",
+  *Journal of Global Optimization* 13, 1998.

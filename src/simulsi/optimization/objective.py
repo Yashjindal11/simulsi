@@ -1,8 +1,9 @@
 """A thin bridge from simulation models to optimisation libraries.
 
-SimulSI does not ship an optimiser. :class:`Objective` turns a model + metric
-into a plain function that scipy.optimize, OR-Tools callbacks, evolutionary
-or Bayesian optimisation libraries can call - none of which is a dependency.
+:class:`Objective` turns a model + metric into a plain function that
+scipy.optimize, OR-Tools callbacks, evolutionary or Bayesian optimisation
+libraries can call. SimulSI's own :func:`~simulsi.optimization.optimize`
+is built on it.
 
 >>> from simulsi.models import mmc
 >>> obj = Objective(mmc, "resource.server.wait.mean", ["servers"], replications=2)

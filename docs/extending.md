@@ -132,13 +132,12 @@ print(unreliable.simulate(seed=1).metrics["resource.server.availability"])
 
 `simulsi.optimization.Objective` exposes `__call__(x) -> float`, `bounds` and
 `history`, which is what scipy.optimize, scikit-optimize, Optuna, DEAP or an
-OR-Tools callback expect. See [experiments.md](experiments.md#optimisation-interface).
+OR-Tools callback expect. See [experiments.md](experiments.md#plugging-in-other-optimisers).
 
 ## New analysis methods
 
 `SensitivityResult` holds `SensitivityRow(parameter, output, method, value,
-ci_low, ci_high, setting, detail)` rows; a new method (for example Morris
-elementary effects) only
-needs to produce rows to get ranking, formatting and tornado plots for free.
+ci_low, ci_high, setting, detail)` rows; a new method (`morris_screening`
+is an example) only needs to produce rows to get ranking, formatting and tornado plots for free.
 Statistical functions in `simulsi.statistics` take plain arrays - add new ones
 there with tests against a reference implementation.

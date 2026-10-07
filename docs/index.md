@@ -42,7 +42,7 @@ Every public class and function is documented in the API reference.
 | Monte Carlo | [Experiments: Monte Carlo](experiments.md#monte-carlo) |
 | Sensitivity analysis | [Experiments: sensitivity](experiments.md#sensitivity-analysis) |
 | Cost models | [Experiments: cost](experiments.md#cost-models) |
-| Optimisation | [Experiments: optimisation](experiments.md#optimisation-interface) |
+| Optimisation | [Experiments: optimisation and surrogates](experiments.md#optimisation-and-surrogates) |
 | Visualization & dashboard | [Visualization](visualization.md) |
 | CLI & YAML configuration | [CLI](cli.md) |
 | Architecture | [Architecture](architecture.md) |
