@@ -69,6 +69,51 @@ assert replay.metrics["resource.server.wait.mean"] == rec.metrics["resource.serv
   design with fresh seeds before reporting it (`optimize(...,
   indifference=...)` does this with `select_best`).
 
+## Uncertainty from the input data
+
+Simulation intervals measure simulation noise. If the inputs were fitted to
+a small data set, the parameters themselves are uncertain, and that can
+matter more. `input_uncertainty` bootstraps the data, refits, re-runs and
+splits the variance into simulation noise and input uncertainty:
+
+```python
+import numpy as np
+
+from simulsi.analysis import InputData, input_uncertainty
+from simulsi.models import mmc
+
+gaps = np.random.default_rng(1).exponential(1 / 0.7, size=40)   # 40 observed interarrival times
+res = input_uncertainty(
+    mmc.with_options(duration=2_000, warmup=200),
+    {"arrival_rate": InputData(gaps, "exponential", lambda d: 1 / d.mean)},
+    "resource.server.wait.mean",
+    n_bootstrap=10, replications=3,
+)
+print(res.format())   # with 40 data points, most of the uncertainty is in the input
+```
+
+When `input_share` is high, collecting more data narrows the answer far more
+than running more replications.
+
+## Rare events
+
+`rare_event_probability(model, metric, threshold)` estimates the chance of
+an extreme outcome with an exact (Clopper-Pearson) interval and the number of
+replications needed for a 10% relative error. With enough runs it also fits
+a generalised Pareto distribution to the upper tail and extrapolates beyond
+the observed data (`gpd_tail_probability`), with a bootstrap interval:
+
+```python
+from simulsi.analysis import rare_event_probability
+
+risk = rare_event_probability(mmc.with_options(duration=2_000), "resource.server.wait.max", 40.0,
+                              params={"arrival_rate": 0.8}, replications=60)
+print(risk.format())
+```
+
+Tail extrapolation assumes the tail keeps the shape seen in the data; check
+it against a longer run before relying on it.
+
 ## Design of experiments
 
 * `grid(...)` / `Experiment.grid(...)` - full factorial designs.
@@ -82,7 +127,8 @@ assert replay.metrics["resource.server.wait.mean"] == rec.metrics["resource.serv
 * `select_best(...)` - choose among alternatives with a probability of
   correct selection guarantee (procedure KN).
 * `fit_surrogate(...)` / `optimize(...)` - Latin hypercube designs, Gaussian
-  process metamodels and Bayesian optimisation.
+  process metamodels, Bayesian optimisation and the cross-entropy method.
+* `pareto_search(...)` - trade-off fronts between several objectives.
 
 ## Reporting checklist
 
@@ -107,6 +153,10 @@ assert replay.metrics["resource.server.wait.mean"] == rec.metrics["resource.serv
   large models", *Environmental Modelling & Software* 22(10), 2007.
 * S.-H. Kim and B. L. Nelson, "A fully sequential procedure for
   indifference-zone selection in simulation", *ACM TOMACS* 11(3), 2001.
+* R. R. Barton and L. W. Schruben, "Resampling methods for input modeling",
+  *Proceedings of the Winter Simulation Conference*, 2001; R. Y. Rubinstein
+  and D. P. Kroese, *The Cross-Entropy Method*, Springer, 2004; S. Coles,
+  *An Introduction to Statistical Modeling of Extreme Values*, Springer, 2001.
 * C. E. Rasmussen and C. K. I. Williams, *Gaussian Processes for Machine
   Learning*, MIT Press, 2006; D. R. Jones, M. Schonlau and W. J. Welch,
   "Efficient global optimization of expensive black-box functions",

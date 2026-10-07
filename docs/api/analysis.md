@@ -7,3 +7,7 @@
 ::: simulsi.analysis.sensitivity
 
 ::: simulsi.analysis.warmup
+
+::: simulsi.analysis.input_uncertainty
+
+::: simulsi.analysis.rare_events

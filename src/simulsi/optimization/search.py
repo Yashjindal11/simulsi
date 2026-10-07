@@ -32,7 +32,7 @@ from simulsi.optimization.surrogate import (
 )
 from simulsi.randomness.stream import derive_seed
 
-Method = Literal["grid", "random", "bayes"]
+Method = Literal["grid", "random", "bayes", "cem"]
 
 
 @dataclass
@@ -125,6 +125,10 @@ def optimize(
     * ``"bayes"`` starts from a Latin hypercube of ``n_initial`` points
       (default ``max(5, 2d + 1)``) and then picks each next point by
       expected improvement on a Gaussian-process surrogate.
+    * ``"cem"`` is the cross-entropy method: sample a population from a
+      Gaussian over the box, keep the best fifth, refit the Gaussian to them
+      and repeat. It suits policy parameters (thresholds, trigger levels)
+      and copes with noisy, non-smooth responses.
 
     Each candidate is the mean of ``replications`` runs with shared seeds.
     With ``indifference`` set (and a ``metric``), the best ``confirm_top``
@@ -175,8 +179,10 @@ def optimize(
             run(p)
     elif method == "bayes":
         _bayes(obj, run, seen, names, ranges, ints, budget, n_initial, seed)
+    elif method == "cem":
+        _cross_entropy(obj, run, seen, names, ranges, ints, budget, seed)
     else:
-        raise ValueError(f"unknown method {method!r}; use 'grid', 'random' or 'bayes'")
+        raise ValueError(f"unknown method {method!r}; use 'grid', 'random', 'bayes' or 'cem'")
 
     best = obj.best()
     if best is None:
@@ -264,3 +270,37 @@ def _bayes(
                 break
         if not picked:
             break  # every candidate was already evaluated (small integer space)
+
+
+def _cross_entropy(
+    obj: Objective,
+    run: Callable[[Mapping[str, Any]], None],
+    seen: set[tuple[Any, ...]],
+    names: list[str],
+    ranges: Mapping[str, tuple[float, float]],
+    ints: list[bool],
+    budget: int,
+    seed: int,
+) -> None:
+    rng = np.random.default_rng(derive_seed(seed, "opt-cem"))
+    lo = np.array([ranges[k][0] for k in names], dtype=float)
+    hi = np.array([ranges[k][1] for k in names], dtype=float)
+    mean, std = (lo + hi) / 2, (hi - lo) / 3
+    population = max(6, min(20, budget // 4))
+    stalls = 0
+    while len(seen) < budget and stalls < 5:
+        before = len(seen)
+        batch: list[dict[str, Any]] = []
+        for _ in range(min(population, budget - len(seen))):
+            x = np.clip(rng.normal(mean, std), lo, hi)
+            p = {k: (round(float(x[j])) if ints[j] else float(x[j])) for j, k in enumerate(names)}
+            run(p)
+            batch.append(p)
+        stalls = stalls + 1 if len(seen) == before else 0
+        scored = [(obj(p), p) for p in batch]  # cached: no extra simulation
+        scored.sort(key=lambda t: t[0])
+        elite = np.array(
+            [[float(p[k]) for k in names] for _, p in scored[: max(2, len(scored) // 5)]]
+        )
+        mean = 0.7 * elite.mean(axis=0) + 0.3 * mean
+        std = np.maximum(0.7 * elite.std(axis=0) + 0.3 * std, (hi - lo) * 0.01)

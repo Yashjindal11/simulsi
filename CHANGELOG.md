@@ -14,6 +14,10 @@ All notable changes to this project are documented here. The format follows
 - Built-in models `airport_turnaround` (parallel ground-handling tasks and
   the critical path) and `disruption_recovery` (delay vs cancel vs spares
   after a hub storm).
+- Input-uncertainty quantification (`input_uncertainty`, bootstrap and
+  refit), rare-event probabilities with exact intervals and generalised
+  Pareto tail extrapolation (`rare_event_probability`), and the
+  cross-entropy method in `optimize(method="cem")`.
 - Multi-objective optimisation: `pareto_search`, `pareto_front`,
   `ParetoResult.plot()` and `simulsi pareto`.
 - "Try it in your browser" docs page running SimulSI with Pyodide.

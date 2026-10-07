@@ -368,7 +368,8 @@ print(best.format())
 * `method="grid"` tries every combination (integers: every value; floats:
   `grid_levels` points), `"random"` a Latin hypercube of `budget` points, and
   `"bayes"` fits a Gaussian process after a small initial design and picks
-  each next point by expected improvement.
+  each next point by expected improvement; `"cem"` is the cross-entropy
+  method, robust for noisy policy parameters such as thresholds.
 * Every candidate is the mean of `replications` runs with shared seeds.
 * With a `metric` and `indifference=...`, the best `confirm_top` candidates
   are re-run with new seeds and compared by `select_best`, so the reported
