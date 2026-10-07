@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-07
+
 ### Added
 
 - Six new built-in models: `airline` (delay propagation), `epidemic`
