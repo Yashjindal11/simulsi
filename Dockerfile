@@ -23,6 +23,9 @@ COPY --from=web /src/src/simulsi/web/static ./src/simulsi/web/static
 RUN python -m build --wheel --outdir /dist
 
 FROM python:3.12-slim
+LABEL org.opencontainers.image.source="https://github.com/Yashjindal11/simulsi" \
+      org.opencontainers.image.description="SimulSI: discrete-event simulation and experimentation, with the web dashboard" \
+      org.opencontainers.image.licenses="MIT"
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     MPLBACKEND=Agg
