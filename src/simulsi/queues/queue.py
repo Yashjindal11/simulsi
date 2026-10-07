@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from simulsi.core.trace import LogRecord
@@ -37,7 +38,14 @@ class Put(Waitable):
 
 
 class Get(Waitable):
-    __slots__ = ()
+    __slots__ = ("filter",)
+
+    def __init__(self, sim: Simulation, filter: Callable[[Any], bool] | None = None) -> None:
+        super().__init__(sim)
+        self.filter = filter
+
+    def accepts(self, item: Any) -> bool:
+        return self.filter is None or bool(self.filter(item))
 
 
 class Queue(Generic[T]):
@@ -47,6 +55,10 @@ class Queue(Generic[T]):
     queue.get()`` waits while it is empty. Items leave in the order given by
     ``discipline`` (``"fifo"``, ``"lifo"``, ``"priority"`` or a key function
     applied to the item).
+
+    ``queue.get(filter=lambda part: part.kind == "A")`` takes the first item
+    (in discipline order) that matches, waiting until one arrives. A waiting
+    filtered get does not hold up gets for other items.
 
     Accounting invariant (checked in tests): ``puts == gets + removed + len(queue)``,
     so items can never disappear silently.
@@ -114,24 +126,36 @@ class Queue(Generic[T]):
             self._accept(req)
         return req
 
-    def get(self) -> Get:
+    def get(self, filter: Callable[[T], bool] | None = None) -> Get:
+        """Take the next item (or the next one matching ``filter``), waiting if there is none."""
         sim = self._require_sim()
-        req = Get(sim)
-        if self._buffer and not self._getters:
-            req.succeed(self._take())
+        req = Get(sim, filter)
+        # Invariant: no waiting get matches any buffered item, so a new get
+        # may take from the buffer without jumping ahead of anyone.
+        slot = self._find(filter)
+        if slot is not None:
+            req.succeed(self._take(slot))
             self._admit_putters()
         else:
             self._getters.append(req)
         return req
 
-    def try_get(self) -> T | None:
-        """Non-blocking get: the next item, or ``None`` if empty."""
+    def try_get(self, filter: Callable[[T], bool] | None = None) -> T | None:
+        """Non-blocking get: the next (matching) item, or ``None``."""
         self._require_sim()
-        if not self._buffer or self._getters:
+        slot = self._find(filter)
+        if slot is None:
             return None
-        item = self._take()
+        item = self._take(slot)
         self._admit_putters()
         return item
+
+    def _find(self, filter: Callable[[T], bool] | None) -> _Slot[T] | None:
+        if not self._buffer:
+            return None
+        if filter is None:
+            return self._buffer.peek()
+        return self._buffer.first(lambda s: bool(filter(s.item)))
 
     def remove(self, item: T) -> bool:
         """Remove a specific item (e.g. a customer abandoning the line)."""
@@ -167,22 +191,24 @@ class Queue(Generic[T]):
                 LogRecord(sim.now, "queue.put", entity=_item_id(req.item), resource=self.name)
             )
         req.succeed(None)
-        if self._getters:
+        getter = next((g for g in self._getters if g.accepts(slot.item)), None)
+        if getter is not None:
             # Hand over directly: the item never sits in the buffer.
+            self._getters.remove(getter)
             self.wait_times.observe(0.0)
             self.gets.increment()
             if sim.log is not None:
                 sim.log.append(
                     LogRecord(sim.now, "queue.get", entity=_item_id(slot.item), resource=self.name)
                 )
-            self._getters.popleft().succeed(slot.item)
+            getter.succeed(slot.item)
             return
         self._buffer.push(slot, slot.priority, slot.item)
         self.length.record(len(self._buffer))
 
-    def _take(self) -> T:
+    def _take(self, slot: _Slot[T]) -> T:
         sim = self._require_sim()
-        slot = self._buffer.pop()
+        self._buffer.remove(slot)
         self.length.record(len(self._buffer))
         self.wait_times.observe(sim.now - slot.put_at)
         self.gets.increment()

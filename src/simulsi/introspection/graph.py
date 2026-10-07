@@ -105,6 +105,7 @@ def inventory(sim: Simulation) -> dict[str, Any]:
             for n, r in sim.resources.items()
         },
         "queues": {n: q.describe() for n, q in sim.queues.items()},
+        "containers": {n: c.describe() for n, c in sim.containers.items()},
         "entity_types": sorted(set(sim._created) | set(sim._id_counters)),
         "processes_started": sim._processes_started,
         "pending_events": len(sim.event_queue),

@@ -21,7 +21,7 @@ from simulsi.metrics import Metrics
 from simulsi.processes import AllOf, AnyOf, Process, Signal, Timeout, Waitable
 from simulsi.queues import Queue
 from simulsi.randomness import RandomStream
-from simulsi.resources import Preempted, Request, Resource
+from simulsi.resources import Container, Preempted, Request, Resource
 from simulsi.scenarios import Scenario, grid
 
 __all__ = [
@@ -31,6 +31,7 @@ __all__ = [
     "Clock",
     "Comparison",
     "ConfigError",
+    "Container",
     "Entity",
     "Event",
     "EventLog",

@@ -97,3 +97,10 @@ class OrderedBuffer(Generic[T]):
         """Items in service order (sorts a copy)."""
         live = sorted(e for e in self._heap if e[3])
         return (e[2] for e in live)
+
+    def first(self, predicate: Callable[[T], bool]) -> T | None:
+        """The first item in service order for which ``predicate`` is true, or ``None``."""
+        for item in self:
+            if predicate(item):
+                return item
+        return None

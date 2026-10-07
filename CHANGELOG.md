@@ -22,6 +22,11 @@ All notable changes to this project are documented here. The format follows
   sampling modes on `RandomStream`) and control variates
   (`ExperimentResult.control_variate`, `statistics.control_variate`).
 - Documentation site with API reference (mkdocs-material, GitHub Pages).
+- Modelling primitives: `Container` (`sim.container`) for levels and stock;
+  filtered gets on queues (`queue.get(filter=...)`); `sim.wait_until(predicate)`;
+  shift schedules (`capacity_schedule`); non-stationary arrivals
+  (`arrivals` with `PiecewiseRate` or a rate function); `batch`, `split`/`join`,
+  `Router` and `shortest_queue`.
 
 ### Changed
 

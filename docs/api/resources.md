@@ -1,6 +1,8 @@
-# Resources and queues
+# Resources, containers and queues
 
 ::: simulsi.resources.resource
+
+::: simulsi.resources.container
 
 ::: simulsi.queues.queue
 

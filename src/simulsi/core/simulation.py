@@ -29,6 +29,7 @@ from simulsi.processes.process import (
 from simulsi.queues.discipline import Discipline
 from simulsi.queues.queue import Queue
 from simulsi.randomness.stream import RandomStream, SamplingMode
+from simulsi.resources.container import Container
 from simulsi.resources.resource import Request, Resource
 
 _SCHEDULED = EventStatus.SCHEDULED
@@ -113,6 +114,8 @@ class Simulation:
         self.entities: dict[str, Entity] = {}
         self.resources: dict[str, Resource] = {}
         self.queues: dict[str, Queue[Any]] = {}
+        self.containers: dict[str, Container] = {}
+        self._watchers: list[tuple[Callable[[], bool], Signal]] = []
         self._id_counters: dict[str, int] = {}
         self._created: dict[str, int] = {}
         self._disposed: dict[str, int] = {}
@@ -267,6 +270,15 @@ class Simulation:
                 LogRecord(event.timestamp, event.event_type, metadata=dict(event.payload))
             )
         event.execute(self)
+        if self._watchers:
+            self._check_watchers()
+
+    def _check_watchers(self) -> None:
+        watchers = self._watchers
+        done = [w for w in watchers if w[0]()]
+        for w in done:
+            watchers.remove(w)
+            w[1].succeed(self.clock._now)
 
     def step(self) -> Event | None:
         """Execute the next event. Returns it, or ``None`` if the queue is empty."""
@@ -334,6 +346,7 @@ class Simulation:
         pop_due = self.event_queue.pop_due
         clock = self.clock
         executed_status = EventStatus.EXECUTED
+        watchers = self._watchers
         # Same steps as _execute, inlined: this loop runs once per event.
         while executed < limit and not self._stop_requested:
             event = pop_due(horizon)
@@ -350,6 +363,8 @@ class Simulation:
                         LogRecord(event.timestamp, event.event_type, metadata=dict(event.payload))
                     )
                 event.execute(self)
+            if watchers:
+                self._check_watchers()
             executed += 1
         stopped_early = self._stop_requested or executed >= limit
         if not stopped_early and math.isfinite(horizon):
@@ -405,6 +420,9 @@ class Simulation:
         for name, q in self.queues.items():
             if q.length.series is not None:
                 out[f"queue.{name}.length"] = list(q.length.series)
+        for name, c in self.containers.items():
+            if c.level_stat.series is not None:
+                out[f"container.{name}.level"] = list(c.level_stat.series)
         for name, g in self.metrics.gauges.items():
             if g.series is not None:
                 out[name] = list(g.series)
@@ -423,6 +441,8 @@ class Simulation:
             flat.update(r.flat_metrics())
         for q in self.queues.values():
             flat.update(q.flat_metrics())
+        for c in self.containers.values():
+            flat.update(c.flat_metrics())
         return flat
 
     def details(self) -> dict[str, Any]:
@@ -437,6 +457,7 @@ class Simulation:
             "metrics": self.metrics.summary(),
             "resources": {name: r.summary() for name, r in self.resources.items()},
             "queues": {name: q.summary() for name, q in self.queues.items()},
+            "containers": {name: c.summary() for name, c in self.containers.items()},
         }
 
     def reset_statistics(self) -> None:
@@ -446,6 +467,8 @@ class Simulation:
             r.reset_stats()
         for q in self.queues.values():
             q.reset_stats()
+        for c in self.containers.values():
+            c.reset_stats()
         self._created.clear()
         self._disposed.clear()
         self._stats_start = self.clock.now
@@ -489,6 +512,21 @@ class Simulation:
     def any_of(self, *waitables: Waitable | Iterable[Waitable]) -> AnyOf:
         return AnyOf(self, _flatten(waitables))
 
+    def wait_until(self, predicate: Callable[[], bool], *, name: str = "condition") -> Signal:
+        """A signal that triggers (with the current time) once ``predicate()`` is true.
+
+        The predicate is checked now and then after every event until it
+        holds, so ``yield sim.wait_until(lambda: stock.level < 20)`` works for
+        any model state. Keep predicates cheap; each pending one costs a call
+        per event.
+        """
+        sig = Signal(self, name)
+        if predicate():
+            sig.succeed(self.clock._now)
+        else:
+            self._watchers.append((predicate, sig))
+        return sig
+
     # -- resources and queues ----------------------------------------------
 
     def add_resource(self, resource: Resource) -> Resource:
@@ -523,6 +561,20 @@ class Simulation:
         self, name: str, *, discipline: Discipline = "fifo", capacity: float = math.inf
     ) -> Queue[Any]:
         return self.add_queue(Queue(name, discipline=discipline, capacity=capacity))
+
+    def add_container(self, container: Container) -> Container:
+        existing = self.containers.get(container.name)
+        if existing is not None and existing is not container:
+            raise ResourceUsageError(
+                f"a different container named {container.name!r} already exists"
+            )
+        container._bind(self)
+        self.containers[container.name] = container
+        return container
+
+    def container(self, name: str, capacity: float = math.inf, *, init: float = 0.0) -> Container:
+        """A level (stock, fuel, cash) that processes ``put`` to and ``get`` from."""
+        return self.add_container(Container(name, capacity, init=init))
 
     def request(
         self,
@@ -661,6 +713,7 @@ class Simulation:
             "active_processes": len(self._processes),
             "resources": {name: r.describe() for name, r in self.resources.items()},
             "queues": {name: q.describe() for name, q in self.queues.items()},
+            "containers": {name: c.describe() for name, c in self.containers.items()},
             "metrics": self.flat_metrics(),
             "warnings": list(self.warnings),
         }
