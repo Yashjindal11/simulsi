@@ -69,6 +69,12 @@ SimulSI is not a replacement for mature engines such as SimPy or Salabim, or
 for commercial packages; see
 [how SimulSI differs](docs/faq.md#how-does-simulsi-compare-with-other-tools).
 
+## Try it without installing
+
+[**Run SimulSI in your browser**](https://yashjindal11.github.io/simulsi/try/) -
+Python and SimulSI run locally in the page via Pyodide (WebAssembly), with
+ready-made airline, epidemic, flowchart and Pareto examples.
+
 ## Installation
 
 Python 3.11+, from [PyPI](https://pypi.org/project/simulsi/):

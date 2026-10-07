@@ -16,6 +16,7 @@ All notable changes to this project are documented here. The format follows
   after a hub storm).
 - Multi-objective optimisation: `pareto_search`, `pareto_front`,
   `ParetoResult.plot()` and `simulsi pareto`.
+- "Try it in your browser" docs page running SimulSI with Pyodide.
 - Dashboard: side-by-side replay of two parameter sets (or presets) on one
   clock with a metric diff, and charts for every series a model records.
 
