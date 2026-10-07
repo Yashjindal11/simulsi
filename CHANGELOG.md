@@ -11,6 +11,9 @@ All notable changes to this project are documented here. The format follows
 - Flowchart models in YAML (`simulsi.flowchart`): sources, resource and delay
   stations, probabilistic routing, patience, shifts, parameters (`$name`)
   and presets; usable anywhere a model reference is accepted.
+- Built-in models `airport_turnaround` (parallel ground-handling tasks and
+  the critical path) and `disruption_recovery` (delay vs cancel vs spares
+  after a hub storm).
 - Dashboard: side-by-side replay of two parameter sets (or presets) on one
   clock with a metric diff, and charts for every series a model records.
 

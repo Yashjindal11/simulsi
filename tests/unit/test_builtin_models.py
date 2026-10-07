@@ -14,6 +14,8 @@ from simulsi.models import BUILTIN_MODELS, traffic_signal, webster_delay
 SHORT = {
     "mmc": 2_000.0,
     "airline": None,
+    "airport_turnaround": None,
+    "disruption_recovery": None,
     "epidemic": None,
     "supply_chain": None,
     "ride_hailing": None,
@@ -156,3 +158,23 @@ def test_models_and_whatif_cli(capsys: pytest.CaptureFixture[str]) -> None:
     assert {r["scenario"] for r in rows} >= {"baseline", "shared_pos_data"}
     assert main(["whatif", "builtin:mmc"]) != 0
     assert main(["whatif", "builtin:mmc", "--vary", "servers"]) != 0
+
+
+def test_airport_turnaround_banks_and_crews() -> None:
+    m = BUILTIN_MODELS["airport_turnaround"]
+    assert _mean(m, {"banks": 3}, "otp") < _mean(m, {}, "otp") - 0.3
+    assert _mean(m, {"fuel_with_pax": True}, "critical.fuel") == 0
+    assert _mean(m, {"banks": 3, "baggage_teams": 12}, "critical.load") < _mean(
+        m, {"banks": 3}, "critical.load"
+    )
+
+
+def test_disruption_recovery_policies() -> None:
+    m = BUILTIN_MODELS["disruption_recovery"]
+    calm = m.simulate({"closure_minutes": 0.0}, seed=1).metrics
+    assert calm["recovery_minutes"] == 0 and calm["legs.cancelled"] == 0
+    delay = _mean(m, {}, "recovery_minutes", 2)
+    assert _mean(m, {"policy": "cancel"}, "recovery_minutes", 2) < delay
+    assert _mean(m, {"policy": "cancel"}, "legs.cancelled", 2) > 0
+    assert _mean(m, {"policy": "spares"}, "spare_trips", 2) > 0
+    assert _mean(m, {"policy": "spares"}, "cost", 2) < _mean(m, {}, "cost", 2)

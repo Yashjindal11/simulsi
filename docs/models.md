@@ -1,6 +1,6 @@
 # Built-in model gallery
 
-SimulSI ships seven ready-to-run models. Each is a normal `Model` with
+SimulSI ships nine ready-to-run models. Each is a normal `Model` with
 documented parameters, key outputs and **presets**: named what-if
 scenarios that show how the system reacts when you change something. Use
 them to learn the library, to teach, or as starting points for your own
@@ -34,6 +34,8 @@ read the tables for *direction and size of effects*, not as forecasts.
 |---|---|---|
 | [`mmc`](#mmc) | the M/M/c queue, checked against Erlang C | any |
 | [`airline`](#airline) | delay propagation through aircraft rotations, crews and gates | minutes |
+| [`airport_turnaround`](#airport-turnaround) | parallel ground-handling tasks, shared crews, the critical path | minutes |
+| [`disruption_recovery`](#disruption-recovery) | delay vs cancel vs spare aircraft after a hub storm | minutes |
 | [`epidemic`](#epidemic) | stochastic SEIR with hospital overflow and lockdown policy | days |
 | [`supply_chain`](#supply-chain) | the bullwhip effect in a four-stage supply chain | days |
 | [`ride_hailing`](#ride-hailing) | pickup-time feedback, cancellations and surge pricing | minutes |
@@ -72,6 +74,55 @@ runway rate.
 Without a buffer most delay is reactionary: one disruption ripples
 through the rest of the day. Padding fixes that, but padded aircraft sit
 at gates longer, so with too few gates the gain turns into gate queues.
+
+## airport turnaround
+
+Every arriving aircraft needs deboarding, cleaning, catering, fuelling,
+baggage unloading and loading, boarding and a pushback tug. Some tasks run
+in parallel, some wait for others, and all aircraft on the ground share the
+same crews and vehicles. `critical.<task>` counts how often each task was
+the last one holding up boarding or pushback.
+
+`simulsi whatif builtin:airport_turnaround --presets -r 6`:
+
+| scenario | on-time | mean departure delay (min) | fuel critical | baggage critical |
+|---|---:|---:|---:|---:|
+| baseline (6 banks) | 0.93 ± 0.02 | 7.3 | 4 | 7.8 |
+| depeaked | 0.94 ± 0.03 | 7.1 | 4 | 0.3 |
+| fuel_with_passengers | 0.93 ± 0.02 | 7.2 | 0 | 8.3 |
+| one_fuel_truck_short | 0.93 ± 0.03 | 7.2 | 10 | 6.7 |
+| extra_baggage_teams | 0.93 ± 0.03 | 7.2 | 5.3 | 0.7 |
+| tight_turns (45 min) | 0.85 ± 0.04 | 10.0 | 5 | 7.2 |
+| big_banks (3 banks) | **0.31** ± 0.02 | **31.8** | 58 | 74 |
+
+With enough crews the critical path is boarding itself. Squeeze the same 90
+flights into three big waves and fuel trucks and baggage teams become the
+critical path for most turnarounds; on-time performance collapses.
+
+## disruption recovery
+
+A storm closes the hub to departures; afterwards the runway works through
+the backlog. Operations control either delays everything, cancels round
+trips that would leave more than `cancel_threshold` late, or puts spare
+aircraft on them.
+
+`simulsi whatif builtin:disruption_recovery --presets -r 6`:
+
+| scenario | on-time | passenger delay (h) | cancelled legs | spare trips | recovery (min) | cost |
+|---|---:|---:|---:|---:|---:|---:|
+| baseline: 150 min storm, delay all | 0.57 | 6,861 | 0 | 0 | 387 | 274k |
+| cancel_policy | **0.73** | 13,210 | 12 | 0 | **215** | 798k |
+| spares_policy | 0.63 | **5,945** | 0 | 2 | 321 | **238k** |
+| long_storm_delay (240 min) | 0.25 | 27,050 | 0 | 0 | 547 | 1,082k |
+| long_storm_cancel | 0.75 | 29,040 | 32 | 0 | 0 | 1,882k |
+| long_storm_spares (4 spares) | 0.50 | 18,130 | 0 | 8 | 543 | 725k |
+| no_storm | 1.00 | 320 | 0 | 0 | 0 | 13k |
+
+Cancelling makes the *schedule* look good (best on-time rate, fastest
+recovery) but strands passengers, so total passenger delay and cost are
+worst. Spare aircraft are the cheapest recovery here. Which policy is
+"best" depends on the objective - a natural case for
+[multi-objective optimisation](experiments.md#optimisation-and-surrogates).
 
 ## epidemic
 

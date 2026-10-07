@@ -125,12 +125,14 @@ scenarios:
 
 ## Built-in models
 
-Seven ready-to-run models, each with *what-if presets* that show how the
+Nine ready-to-run models, each with *what-if presets* that show how the
 system reacts when a parameter changes:
 
 | Model | What changes when you turn the knobs |
 |---|---|
 | `builtin:airline` | schedule buffer, crews, gates, spares and storms vs on-time performance and delay propagation |
+| `builtin:airport_turnaround` | banked vs depeaked schedules, crews and refuelling rules vs turnaround critical path and delays |
+| `builtin:disruption_recovery` | after a hub storm: delay vs cancel vs spare aircraft, by cost, passenger delay and recovery time |
 | `builtin:epidemic` | R0, vaccination, beds and lockdown policy vs attack rate, hospital overflow and deaths |
 | `builtin:supply_chain` | lead times, forecasting and information sharing vs the bullwhip effect |
 | `builtin:ride_hailing` | fleet size, rush hours and surge pricing vs service level and driver earnings |
