@@ -1,0 +1,43 @@
+# A walk-in clinic as a flowchart model: no Python needed.
+#   simulsi run examples/flowcharts/clinic.yaml
+#   simulsi whatif examples/flowcharts/clinic.yaml --presets
+flow:
+  name: clinic
+  description: Walk-in clinic - triage, doctor consult, optional lab test.
+  duration: 600          # minutes
+  warmup: 60
+  parameters:
+    nurses: {default: 2, low: 1, description: triage nurses}
+    doctors: {default: 3, low: 1, description: doctors on shift}
+    lab_techs: 1
+    arrival_mean: {default: 5.0, low: 0.1, unit: min, description: mean minutes between arrivals}
+    lab_share: {default: 0.3, kind: probability, description: share of patients needing a lab test}
+  resources:
+    nurse: $nurses
+    doctor: {capacity: $doctors}
+    lab: $lab_techs
+  sources:
+    - name: patient
+      interarrival: {distribution: exponential, mean: $arrival_mean}
+      next: triage
+  stations:
+    triage:
+      resource: nurse
+      service: {distribution: triangular, low: 2, mode: 4, high: 8}
+      next: consult
+    consult:
+      resource: doctor
+      service: {distribution: lognormal, mu: 2.5, sigma: 0.4}
+      patience: {distribution: exponential, mean: 90}
+      next: {lab: $lab_share, exit: rest}
+    lab:
+      resource: lab
+      service: {distribution: uniform, low: 5, high: 15}
+      next: review
+    review:
+      delay: 5
+      next: exit
+  presets:
+    extra_doctor: {doctors: 4}
+    flu_season: {arrival_mean: 3.5}
+    flu_season_staffed: {arrival_mean: 3.5, doctors: 5, nurses: 3}

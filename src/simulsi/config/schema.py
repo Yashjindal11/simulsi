@@ -206,6 +206,16 @@ def resolve_model(
         if key not in BUILTIN_MODELS:
             raise ConfigError(f"unknown builtin model {key!r}; available: {sorted(BUILTIN_MODELS)}")
         return BUILTIN_MODELS[key]
+    if ref.endswith((".yaml", ".yml")):
+        from simulsi.flowchart import is_flowchart, load_flowchart
+
+        base = Path(base_dir).resolve() if base_dir is not None else Path.cwd().resolve()
+        path = (base / ref).resolve()
+        if not allow_outside and base not in path.parents:
+            raise ConfigError(f"flowchart {ref!r} is outside the configuration directory {base}")
+        if not is_flowchart(path):
+            raise ConfigError(f"{ref!r} is not a flowchart file (no top-level 'flow:' section)")
+        return load_flowchart(path)
     if ".py:" in ref:
         target, attr = ref.rsplit(":", 1)  # rsplit keeps Windows drive letters intact
     elif ref.endswith(".py"):

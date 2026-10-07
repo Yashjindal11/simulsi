@@ -144,7 +144,9 @@ simulsi whatif builtin:airline --presets                    # compare every pres
 simulsi whatif builtin:traffic_signal --vary cycle=30,60,90,120
 ```
 
-See the [model gallery](docs/models.md) for what each one shows.
+See the [model gallery](docs/models.md) for what each one shows. Simple process
+models can also be written as [YAML flowcharts](docs/flowcharts.md), no Python
+needed: `simulsi whatif examples/flowcharts/clinic.yaml --presets`.
 
 ## Examples
 
@@ -177,6 +179,7 @@ pages are in [`docs/`](docs):
 - [Architecture](docs/architecture.md) - design, module map, performance, limitations
 - [Extending SimulSI](docs/extending.md)
 - [Research workflow](docs/research.md) - reproducibility, provenance, statistical practice
+- [Flowchart models](docs/flowcharts.md) - build process models in YAML, no Python
 - [Built-in model gallery](docs/models.md) - airline, epidemic, supply chain, ride hailing, cloud, traffic, M/M/c
 - [Examples and notebooks](docs/examples.md) - walkthroughs of the domain examples and tutorial notebooks
 - [Coming from SimPy](docs/simpy-migration.md) - concept map and a side-by-side port

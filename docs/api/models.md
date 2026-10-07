@@ -4,6 +4,8 @@
 
 ::: simulsi.scenarios.scenario
 
+::: simulsi.flowchart
+
 ::: simulsi.models
 
 ::: simulsi.models.queueing

@@ -48,7 +48,9 @@ def _metrics_table(metrics: dict[str, float], only: Sequence[str] | None = None)
 
 
 def _is_config(target: str) -> bool:
-    return target.endswith((".yaml", ".yml"))
+    from simulsi.flowchart import is_flowchart
+
+    return target.endswith((".yaml", ".yml")) and not is_flowchart(target)
 
 
 # -- commands ----------------------------------------------------------------------

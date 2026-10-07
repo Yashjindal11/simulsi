@@ -29,6 +29,7 @@ Wherever a model is expected you can write:
 | `examples/queue.py` | the module's `model` attribute, or its only `Model` |
 | `examples/queue.py:queue` | a named attribute of a file |
 | `mypackage.models:clinic` | an attribute of an importable module |
+| `clinic.yaml` | a [flowchart model](flowcharts.md) (a YAML file with a top-level `flow:`) |
 | `experiment.yaml` | (`run`, `validate`) the model and base parameters of a config |
 
 Parameters given with `-p key=value` are parsed as YAML scalars, so

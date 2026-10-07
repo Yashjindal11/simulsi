@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Flowchart models in YAML (`simulsi.flowchart`): sources, resource and delay
+  stations, probabilistic routing, patience, shifts, parameters (`$name`)
+  and presets; usable anywhere a model reference is accepted.
+
 ## [0.5.0] - 2026-10-07
 
 ### Added
