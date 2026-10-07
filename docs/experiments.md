@@ -389,6 +389,39 @@ print(mean, sd)
 Predictions are refused outside the fitted ranges. Treat them as a guide to
 where to run real experiments, not as results.
 
+## Trade-offs: Pareto fronts
+
+When objectives conflict (cost vs service, on-time rate vs passenger
+delay) there is no single best design, only a front of designs where
+improving one objective worsens another. `pareto_search` evaluates
+candidates with common random numbers and marks that front:
+
+```python
+from simulsi.models import mmc
+from simulsi.optimization import pareto_search
+
+front = pareto_search(
+    mmc.with_options(duration=2_000, warmup=200),
+    {"resource.server.wait.mean": "min", "resource.server.utilization": "max"},
+    grid={"servers": [1, 2, 3, 4]},
+    fixed={"arrival_rate": 0.8},
+    replications=3,
+)
+print(front.format(all_designs=True))
+```
+
+Candidates come from `grid=` (full factorial), `ranges=` (a Latin
+hypercube of `budget` points) or `scenarios=` (named parameter sets).
+`front.plot()` draws two objectives with the front highlighted. When a
+dominated design lies within the confidence intervals of a front design, the
+result says so: more replications may change the front. From the command
+line:
+
+```bash
+simulsi pareto builtin:disruption_recovery -o cost:min -o otp:max \
+    --vary policy=delay,cancel,spares --vary spares=1,2,4 --plot front.png
+```
+
 ## Plugging in other optimisers
 
 `Objective` turns a model into a function any optimiser can call

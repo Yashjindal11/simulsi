@@ -14,6 +14,8 @@ All notable changes to this project are documented here. The format follows
 - Built-in models `airport_turnaround` (parallel ground-handling tasks and
   the critical path) and `disruption_recovery` (delay vs cancel vs spares
   after a hub storm).
+- Multi-objective optimisation: `pareto_search`, `pareto_front`,
+  `ParetoResult.plot()` and `simulsi pareto`.
 - Dashboard: side-by-side replay of two parameter sets (or presets) on one
   clock with a metric diff, and charts for every series a model records.
 

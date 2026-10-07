@@ -10,6 +10,7 @@ simulsi warmup TARGET [-p KEY=VALUE ...] [--series KEY] [-r N] [--duration T] [-
 simulsi fit FILE [--column NAME] [--candidates NAME ...] [--criterion aic|bic|ks] [--json]
 simulsi report RESULTS [-o report.html] [-m METRIC ...] [--baseline NAME] [--adjust METHOD] [--title T]
 simulsi models [NAME]
+simulsi pareto TARGET -o METRIC:min|max ... (--vary KEY=V1,V2,... | --presets) [-p KEY=VALUE ...] [-r N] [--all] [--plot FILE] [--json]
 simulsi whatif TARGET (--vary KEY=V1,V2,... | --presets) [-p KEY=VALUE ...] [-m METRIC ...] [-r N] [-w N] [--seed N] [--duration T] [--json]
 simulsi benchmark [--sizes N ...] [--workers N ...] [--replications N] [--no-memory] [--json]
 simulsi visualize TARGET [-o DIR] [-m METRIC ...] [--backend matplotlib|plotly] [--format png|svg|pdf]
@@ -58,6 +59,9 @@ Parameters given with `-p key=value` are parsed as YAML scalars, so
 * **whatif** shows how outputs change: `--vary` sweeps parameter values
   (repeat it for a full grid), `--presets` compares the model's what-if
   presets. It prints means with 95% CIs and a bar chart of the first metric.
+* **pareto** evaluates candidate designs on several objectives and lists
+  the Pareto front (`--all` shows dominated designs too, `--plot` saves a
+  scatter plot).
 * **report** writes a self-contained HTML report of saved results
   (provenance, summaries, charts, comparisons).
 * **benchmark** measures engine throughput (10k / 100k / 1M events),

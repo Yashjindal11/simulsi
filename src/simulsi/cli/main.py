@@ -563,6 +563,62 @@ def cmd_whatif(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_pareto(args: argparse.Namespace) -> int:
+    from simulsi.config.schema import resolve_model
+    from simulsi.optimization.pareto import pareto_search
+
+    model = resolve_model(args.target)
+    if args.duration is not None:
+        model = model.with_options(
+            duration=args.duration, warmup=min(model.warmup, args.duration / 2)
+        )
+    objectives: dict[str, Any] = {}
+    for item in args.objective:
+        name, _, sense = item.rpartition(":")
+        if not name or sense not in ("min", "max"):
+            raise ConfigError(f"--objective expects METRIC:min or METRIC:max, got {item!r}")
+        objectives[name] = sense
+    base = _parse_params(args.param)
+    kwargs: dict[str, Any] = {}
+    if args.vary:
+        axes: dict[str, list[Any]] = {}
+        for item in args.vary:
+            key, sep, raw = item.partition("=")
+            if not sep or not raw:
+                raise ConfigError(f"--vary expects key=v1,v2,..., got {item!r}")
+            axes[key.strip()] = [yaml.safe_load(v) for v in raw.split(",")]
+        kwargs["grid"] = axes
+    elif args.presets:
+        kwargs["scenarios"] = {"baseline": {}, **model.presets}
+    else:
+        raise ConfigError("give --vary KEY=v1,v2,... and/or --presets")
+    try:
+        res = pareto_search(
+            model,
+            objectives,
+            replications=args.replications,
+            seed=args.seed,
+            fixed=base,
+            workers=args.workers,
+            **kwargs,
+        )
+    except ValueError as exc:
+        _err(str(exc))
+        return EXIT_INVALID
+    if args.json:
+        from simulsi.serialization.io import to_jsonable
+
+        _print(json.dumps(to_jsonable(res.to_dict()), indent=2))
+        return EXIT_OK
+    _print(res.format(all_designs=args.all))
+    if args.plot:
+        from simulsi.visualization import save_figure
+
+        save_figure(res.plot().figure, args.plot)
+        _print(f"wrote {args.plot}")
+    return EXIT_OK
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     from simulsi.experiments.experiment import ExperimentResult
 
@@ -743,6 +799,23 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--duration", type=float)
     s.add_argument("--json", action="store_true")
     s.set_defaults(func=cmd_whatif)
+
+    s = sub.add_parser(
+        "pareto", help="find the trade-off (Pareto) front between several objectives"
+    )
+    s.add_argument("target", help="model reference, e.g. builtin:disruption_recovery")
+    s.add_argument("--objective", "-o", action="append", required=True, metavar="METRIC:min|max")
+    s.add_argument("--vary", action="append", metavar="KEY=V1,V2,...")
+    s.add_argument("--presets", action="store_true")
+    s.add_argument("--param", "-p", action="append", metavar="KEY=VALUE")
+    s.add_argument("--replications", "-r", type=int, default=5)
+    s.add_argument("--workers", "-w", type=int, default=1)
+    s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--duration", type=float)
+    s.add_argument("--all", action="store_true", help="list dominated designs too")
+    s.add_argument("--plot", metavar="FILE", help="save a scatter plot (needs matplotlib)")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(func=cmd_pareto)
 
     s = sub.add_parser("benchmark", help="measure engine and experiment throughput on this machine")
     s.add_argument("--sizes", type=int, nargs="+", help="event counts (default 10k 100k 1M)")

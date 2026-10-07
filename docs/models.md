@@ -122,7 +122,8 @@ Cancelling makes the *schedule* look good (best on-time rate, fastest
 recovery) but strands passengers, so total passenger delay and cost are
 worst. Spare aircraft are the cheapest recovery here. Which policy is
 "best" depends on the objective - a natural case for
-[multi-objective optimisation](experiments.md#optimisation-and-surrogates).
+[Pareto analysis](experiments.md#trade-offs-pareto-fronts):
+`simulsi pareto builtin:disruption_recovery -o cost:min -o otp:max --vary policy=delay,cancel,spares --vary spares=1,2,4`.
 
 ## epidemic
 

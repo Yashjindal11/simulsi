@@ -6,4 +6,6 @@
 
 ::: simulsi.optimization.search
 
+::: simulsi.optimization.pareto
+
 ::: simulsi.optimization.surrogate
