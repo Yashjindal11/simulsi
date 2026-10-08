@@ -14,7 +14,7 @@ authors:
 repository-code: "https://github.com/Yashjindal11/simulsi"
 url: "https://yashjindal11.github.io/simulsi/"
 license: MIT
-version: 0.6.0
+version: 0.7.0
 date-released: "2026-10-07"
 keywords:
   - discrete-event simulation

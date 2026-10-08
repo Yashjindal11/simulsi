@@ -157,3 +157,46 @@ export interface Trace {
   log: LogRecord[];
   log_dropped: number;
 }
+
+export interface GanttBar {
+  tail: string;
+  flight: string;
+  origin: string;
+  dest: string;
+  std: number;
+  sta: number;
+  etd: number;
+  eta: number;
+  p_on_time: number;
+  p_cancel: number;
+  p80: number | null;
+  cause: string;
+  status: string;
+}
+
+export interface OpsFlight {
+  id: string;
+  tail: string;
+  origin: string;
+  dest: string;
+  std: string;
+  sta: string;
+  p_on_time: number | null;
+  p_cancel: number | null;
+  dep_delay_p50: number | null;
+  dep_delay_p80: number | null;
+  dep_delay_p95: number | null;
+  main_cause: string;
+  misconnect_pax: number | null;
+  status: string;
+}
+
+export interface OpsForecast {
+  replications: number;
+  now: number | null;
+  summary: Record<string, { mean: number; p10: number; p90: number }>;
+  flights: OpsFlight[];
+  rotations: { tail: string; legs: number; expected_delay_minutes: number; p_any_cancel: number; worst_leg: string; first_at_risk: string }[];
+  alerts: { level: string; kind: string; message: string; flight: string }[];
+  gantt: GanttBar[];
+}

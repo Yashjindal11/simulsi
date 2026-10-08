@@ -32,6 +32,8 @@ Suggestions are welcome as [issues](https://github.com/Yashjindal11/simulsi/issu
 ## Done recently
 
 See the [changelog](https://github.com/Yashjindal11/simulsi/blob/main/CHANGELOG.md):
+airline operations (day-ahead and live forecasts, recovery search, reserve
+and buffer planning, calibration and backtesting);
 YAML flowchart models; side-by-side replay; fifteen built-in models with
 what-if presets; Pareto search; input-uncertainty and rare-event analysis;
 the cross-entropy method; an in-browser demo; model plugins through entry

@@ -162,6 +162,33 @@ See the [model gallery](docs/models.md) for what each one shows. Simple process
 models can also be written as [YAML flowcharts](docs/flowcharts.md), no Python
 needed: `simulsi whatif examples/flowcharts/clinic.yaml --presets`.
 
+## Airline operations
+
+`simulsi.aviation` turns a real flight schedule (CSV) into a stochastic model
+of the operation - aircraft rotations, crews, runways, gates, curfews,
+spares, standby crews and passenger connections:
+
+- **day ahead**: per-flight on-time and cancellation chances, delay ranges,
+  fragile rotations, connection risk and alerts, under weather scenarios;
+- **live twin**: re-forecast the rest of the day from actual times;
+- **what-ifs and recovery**: cancel, retime or swap aircraft, compared on
+  the same disturbances, plus a greedy recovery search;
+- **planning**: spares and standby crews, schedule buffers, schedule changes;
+- **calibration**: fit delays to history (including US BTS files), backtest
+  with reliability tables, plug in an ML delay predictor;
+- **ground and passengers**: turnaround critical path, minimum connection
+  time, overbooking, check-in staffing.
+
+```bash
+simulsi aviation example ops && cd ops
+simulsi aviation forecast schedule.csv -c connections.csv --ops ops.yaml
+simulsi aviation forecast schedule.csv -c connections.csv --ops ops.yaml --status status_1200.csv --now 12:00
+simulsi aviation recover schedule.csv -c connections.csv --ops ops.yaml --status status_1200.csv --now 12:00
+```
+
+The dashboard has an *Airline ops twin* page with a Gantt chart of the
+rotations. See [Airline operations](docs/aviation.md).
+
 ## Examples
 
 | Example | Shows |
@@ -173,6 +200,7 @@ needed: `simulsi whatif examples/flowcharts/clinic.yaml --presets`.
 | [`manufacturing.py`](examples/manufacturing.py) | Breakdowns with a repair crew, blocking, cost model |
 | [`transportation.py`](examples/transportation.py) | Shuttle loop, boarding capacity, left-behind passengers |
 | [`aviation.py`](examples/aviation.py) | Synthetic airport gates, taxiway holds, tows, weather disruption |
+| [`airline_ops.py`](examples/airline_ops.py) | Day-ahead forecast, live re-forecast at noon and a recovery search |
 
 ```bash
 python examples/hospital.py

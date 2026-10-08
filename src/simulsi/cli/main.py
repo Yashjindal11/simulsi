@@ -845,6 +845,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--port", type=int, default=8642)
     s.add_argument("--no-browser", action="store_true")
     s.set_defaults(func=cmd_ui)
+
+    from simulsi.cli import aviation
+
+    aviation.add_parser(sub)
     return p
 
 

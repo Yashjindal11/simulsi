@@ -308,6 +308,64 @@ def montecarlo_task(state: DashboardState, body: Mapping[str, Any]) -> Callable[
 # -- HTTP handler ------------------------------------------------------------------------
 
 
+def aviation_example() -> dict[str, Any]:
+    from simulsi.aviation import Schedule
+    from simulsi.cli.aviation import EXAMPLE_OPS, example_status
+
+    schedule = Schedule.synthetic()
+    return {
+        "schedule_csv": schedule.to_csv(),
+        "connections_csv": schedule.connections_csv(),
+        "ops_yaml": EXAMPLE_OPS,
+        "status_csv": example_status(schedule)[1],
+        "status_now": "12:00",
+    }
+
+
+def aviation_forecast(body: Mapping[str, Any]) -> dict[str, Any]:
+    """Forecast a day from CSV text and YAML rules sent by the dashboard."""
+    import csv
+    import io
+
+    import yaml
+
+    from simulsi.aviation import OpsConfig, OpsState, Schedule, WeatherEvent, forecast, parse_action
+    from simulsi.aviation.config import weather_from_config
+    from simulsi.aviation.forecast import jsonable
+
+    def rows(key: str) -> list[dict[str, Any]]:
+        text = str(body.get(key) or "")
+        return list(csv.DictReader(io.StringIO(text))) if text.strip() else []
+
+    schedule = Schedule.from_records(rows("schedule_csv"), rows("connections_csv")).check()
+    if len(schedule) > 3000:
+        raise ConfigError("the dashboard forecasts up to 3000 flights; use the CLI for more")
+    try:
+        data = yaml.safe_load(str(body.get("ops_yaml") or "")) or {}
+    except yaml.YAMLError as exc:
+        raise ConfigError(f"ops YAML: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ConfigError("ops YAML must be a mapping")
+    cfg = OpsConfig.from_dict(data)
+    weather = weather_from_config(data) + [
+        WeatherEvent.parse(w) for w in body.get("weather") or [] if str(w).strip()
+    ]
+    reps = int(body.get("replications", 200))
+    if not 1 <= reps * max(1, len(schedule)) <= 400_000 or reps > 1000:
+        raise ConfigError("replications x flights must be at most 400 000 (and replications <= 1000)")
+    state = None
+    if body.get("now"):
+        if not rows("status_csv"):
+            raise ConfigError("a start time needs a live status CSV (flight, atd, ata, etd, status)")
+        state = OpsState.from_records(str(body["now"]), rows("status_csv"))
+    actions = [parse_action(str(a)) for a in body.get("actions") or [] if str(a).strip()]
+    fc = forecast(
+        schedule, cfg, replications=reps, seed=int(body.get("seed", 0)), weather=weather, state=state, actions=actions
+    )
+    out: dict[str, Any] = jsonable(fc.to_dict())
+    return out
+
+
 def make_handler(state: DashboardState, allowed_hosts: set[str]) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         server_version = f"simulsi/{__version__}"
@@ -390,6 +448,8 @@ def make_handler(state: DashboardState, allowed_hosts: set[str]) -> type[BaseHTT
                     self._json([{"id": k, **m.describe()} for k, m in sorted(state.models.items())])
                 elif parts == ["results"]:
                     self._json(result_index(state))
+                elif parts == ["aviation", "example"]:
+                    self._json(aviation_example())
                 elif len(parts) == 2 and parts[0] == "jobs":
                     self._json(state.job(parts[1]))
                 elif len(parts) == 2 and parts[0] == "results":
@@ -450,6 +510,8 @@ def make_handler(state: DashboardState, allowed_hosts: set[str]) -> type[BaseHTT
                     raise ConfigError("duration must be in (0, 1e7]")
                 self._json(run_trace(model, dict(body.get("parameters") or {}), int(body.get("seed", 0)),
                                      None if duration is None else float(duration)))
+            elif path == "/api/aviation/forecast":
+                self._json(aviation_forecast(body))
             elif path == "/api/results":
                 res = ExperimentResult.from_dict(body)
                 self._json({"id": state.add_result(res, "uploaded in browser")}, HTTPStatus.CREATED)

@@ -62,6 +62,7 @@ nav:
       - CLI and configuration: cli.md
       - Built-in model gallery: models.md
       - Flowchart models (YAML): flowcharts.md
+      - Airline operations: aviation.md
       - Examples and notebooks: examples.md
       - Coming from SimPy: simpy-migration.md
   - Background:
@@ -83,6 +84,7 @@ nav:
       - Statistics: api/statistics.md
       - Comparison, selection and sensitivity: api/analysis.md
       - Cost, optimisation and surrogates: api/decisions.md
+      - Airline operations: api/aviation.md
       - Validation and introspection: api/validation.md
       - Visualization: api/visualization.md
       - Configuration and I/O: api/io.md

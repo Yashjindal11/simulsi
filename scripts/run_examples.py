@@ -20,6 +20,7 @@ EXAMPLES = [
     "manufacturing",
     "transportation",
     "aviation",
+    "airline_ops",
 ]
 
 

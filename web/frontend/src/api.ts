@@ -1,4 +1,4 @@
-import type { CompareRow, Job, MetricDetail, ModelInfo, ResultDetail, ResultIndex, Trace } from "./types";
+import type { CompareRow, Job, MetricDetail, ModelInfo, OpsForecast, ResultDetail, ResultIndex, Trace } from "./types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init);
@@ -34,6 +34,9 @@ export const api = {
   montecarlo: (body: unknown) => post<Job>("/api/montecarlo", body),
   job: (id: string) => request<Job>(`/api/jobs/${encodeURIComponent(id)}`),
   trace: (body: unknown) => post<Trace>("/api/trace", body),
+  aviationExample: () =>
+    request<{ schedule_csv: string; connections_csv: string; ops_yaml: string; status_csv: string; status_now: string }>("/api/aviation/example"),
+  aviationForecast: (body: unknown) => post<OpsForecast>("/api/aviation/forecast", body),
   upload: (experiment: unknown) => post<{ id: string }>("/api/results", experiment),
   exportUrl: (id: string, kind: "json" | "csv") => `/api/results/${encodeURIComponent(id)}/export.${kind}`,
   reportUrl: (id: string) => `/api/results/${encodeURIComponent(id)}/report.html`,

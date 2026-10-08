@@ -71,6 +71,10 @@ Parameters given with `-p key=value` are parsed as YAML scalars, so
   or runs a model once with tracing and plots queues, utilization, timeline
   and trajectories.
 * **ui** starts the local web dashboard ([details](visualization.md#web-dashboard)).
+* **aviation** works on airline schedules: `example`, `forecast` (day ahead,
+  or live with `--status` and `--now`), `whatif`, `recover`, `reserves`,
+  `buffers`, `impact`, `calibrate`, `backtest`, `turnaround`, `mct`,
+  `overbooking` and `checkin` ([details](aviation.md#command-line)).
 
 ## Experiment configuration
 

@@ -5,6 +5,7 @@ import { CompareView } from "./pages/Compare";
 import { DistributionsView } from "./pages/Distributions";
 import { ExploreView } from "./pages/Explore";
 import { Home } from "./pages/Home";
+import { OpsView } from "./pages/Ops";
 import { OverviewView } from "./pages/Overview";
 import { ResponseView } from "./pages/Response";
 import { RunView } from "./pages/Run";
@@ -17,6 +18,7 @@ type Route =
   | { page: "run" }
   | { page: "explore" }
   | { page: "trace" }
+  | { page: "ops" }
   | { page: "result"; id: string; tab: Tab };
 
 const TABS: Tab[] = ["overview", "compare", "distributions", "response"];
@@ -26,6 +28,7 @@ function parse(hash: string): Route {
   if (parts[0] === "run") return { page: "run" };
   if (parts[0] === "explore") return { page: "explore" };
   if (parts[0] === "trace") return { page: "trace" };
+  if (parts[0] === "ops") return { page: "ops" };
   if (parts[0] === "result" && parts[1]) {
     const tab = (TABS as string[]).includes(parts[2]) ? (parts[2] as Tab) : "overview";
     return { page: "result", id: parts[1], tab };
@@ -78,6 +81,7 @@ export default function App() {
           {navItem("Run experiment", "/run", route.page === "run")}
           {navItem("Explore (grid, sensitivity, MC)", "/explore", route.page === "explore")}
           {navItem("Trace & replay a run", "/trace", route.page === "trace")}
+          {navItem("Airline ops twin", "/ops", route.page === "ops")}
         </nav>
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Experiments</p>
@@ -99,6 +103,7 @@ export default function App() {
         {route.page === "run" && <RunView onDone={opened} />}
         {route.page === "explore" && <ExploreView onDone={(id) => { refresh(); go(`/result/${id}/response`); }} />}
         {route.page === "trace" && <TraceView />}
+        {route.page === "ops" && <OpsView />}
         {route.page === "result" && (
           <ResultShell id={route.id} tab={route.tab} />
         )}

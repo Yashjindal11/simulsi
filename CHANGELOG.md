@@ -6,6 +6,32 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-07
+
+### Added
+
+- `simulsi.aviation`: airline operations on real schedules. Schedules and
+  connections from CSV; operating rules (turn times, runway rates, gates,
+  curfews, crew duty, spares, standby crews, recovery thresholds, costs,
+  EU261); a delay model per airport and hour; weather scenarios with
+  probabilities.
+- A network day simulation (`simulate_day`, `network_model`) with aircraft
+  and crew delay propagation, departure and landing slots, gate waits,
+  spare-aircraft swaps decided while the late aircraft is inbound,
+  standby crews, round-trip and curfew cancellations, and misconnections.
+  Common random numbers across plans.
+- Day-ahead and live forecasts (`forecast` with `OpsState`): per-flight
+  on-time and cancellation chances, delay quantiles and causes, fragile
+  rotations, connection risk, alerts, Gantt data; `rolling_forecast`.
+- What-ifs and recovery: `Cancel`, `Retime`, `Swap`, `compare_plans`,
+  `recover` (greedy search that only keeps clear savings).
+- Planning: `plan_reserves`, `optimize_buffers`, `schedule_impact`.
+- Calibration: `History` (generic and BTS CSV), `fit_delay_model`,
+  `calibrate` (method of simulated moments), `backtest` with reliability
+  tables, Brier skill and quantile coverage; ML predictor hook.
+- Ground and passengers: `turnaround` critical path, `recommend_mct`,
+  `overbooking`, `checkin_staffing` (Erlang C plus simulation check).
+- `simulsi aviation` CLI and the dashboard *Airline ops twin* page.
 ## [0.6.0] - 2026-10-07
 
 ### Added
