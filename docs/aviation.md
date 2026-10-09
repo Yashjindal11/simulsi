@@ -261,19 +261,34 @@ print("MCT for 95%:", recommend_mct(samples=5000).mct, "min")
 
 Calibration starts from `History`, which reads a CSV of actual flights.
 It accepts the generic columns `date, flight, tail, origin, dest, std,
-sta, atd, ata, cancelled`. It also reads the US BTS on-time files
-(`FL_DATE, TAIL_NUM, CRS_DEP_TIME, DEP_DELAY, ...`), downloaded from the
-Bureau of Transportation Statistics. There are two ways to fit the delay
-model:
+sta, atd, ata, cancelled`. It also reads the US BTS on-time files, in both
+the download format (`FL_DATE, TAIL_NUM, CRS_DEP_TIME, DEP_DELAY, ...`)
+and the monthly ZIP format (`FlightDate, Tail_Number, CRSDepTime, ...`):
+
+* `carrier="AS"` keeps one airline.
+* BTS times are local. When scheduled block times are present, each
+  airport's offset is inferred from the data and all times are put on one
+  clock (`history.clock`, `history.tz_offsets`).
+* `history.schedule(date)` splits rotations broken by diversions or
+  missing legs, so every day validates.
+* `history.state(date, now)` rebuilds what was known at a given time.
+
+There are two ways to fit the delay model:
 
 * **`fit_delay_model`** subtracts each departure's knock-on delay from a
   late inbound aircraft. The rest counts as primary delay, and the function
-  estimates its chance and size per airport.
+  estimates its chance and size per airport, the empirical *shape* of
+  delays (heavier-tailed than an exponential), and actual against
+  scheduled block time.
 * **`calibrate`** refines that estimate by simulation. The direct estimate
   also counts runway queues and crew waits, which the simulation adds by
   itself. `calibrate` re-simulates historical days and adjusts each
   airport's parameters until the simulated share of late departures and
-  the mean delay match history.
+  the mean delay match history. It also sets `day_sigma` so that whole
+  days vary together as much as real ones do.
+
+`fit_turn_times` estimates each airport's minimum turn from the fastest
+turns actually flown.
 
 `backtest` forecasts each past day from its schedule alone and scores the
 forecasts:
@@ -284,6 +299,11 @@ forecasts:
 * **Delay-quantile coverage**: about 80% of departures should be at or
   below the predicted p80.
 * **OTP error per day.**
+* **Live scoring** with `live_at=[...]`: it also re-forecasts from the
+  live state at those times and scores the flights still to depart.
+
+See the [Alaska Airlines case study](case-study-bts.md) for a full run on
+a month of real data.
 
 ```python
 from simulsi.aviation import Schedule, OpsConfig, DelayModel, History, calibrate, backtest
@@ -321,6 +341,9 @@ simulsi aviation buffers  ... --budget 60 -o padded.csv
 simulsi aviation impact   schedule.csv changed.csv ...
 simulsi aviation calibrate history.csv --ops ops.yaml -o delays.yaml
 simulsi aviation backtest history.csv --ops ops.yaml --delays delays.yaml
+simulsi aviation history bts.csv --carrier AS [--date 2026-06-21 -o day.csv --status-at 17:00 --status-out st.csv]
+simulsi aviation calibrate bts.csv --carrier AS --days 20 --fit-turns --write-ops as_ops.yaml
+simulsi aviation backtest  bts.csv --carrier AS --skip-days 20 --ops as_ops.yaml --live-at 17:00
 simulsi aviation turnaround [--team clean=1]
 simulsi aviation mct | overbooking --seats 180 --show-rate 0.92 | checkin schedule.csv --airport HUB
 ```

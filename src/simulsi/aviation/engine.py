@@ -109,7 +109,8 @@ def build_day(
     # Pre-draw randomness per flight in id order: plans that differ only by actions share it.
     rs_p, rs_b, rs_t = sim.stream("primary"), sim.stream("block"), sim.stream("turn")
     ordered = sorted(schedule.flights, key=lambda f: f.id)
-    primary = {f.id: cfg.delays.primary(f, rs_p) for f in ordered}
+    day = cfg.delays.day_factor(sim.stream("day"))
+    primary = {f.id: cfg.delays.primary(f, rs_p, day) for f in ordered}
     block = {f.id: cfg.delays.block(f, rs_b) for f in ordered}
     turn_factor = {f.id: rs_t.triangular(0.9, 1.0, 1.4) for f in ordered}
 
@@ -537,6 +538,9 @@ def network_model(
             block_cv=delays.block_cv,
             table={k: (min(1.0, v[0] * p.delay_scale), v[1]) for k, v in delays.table.items()},
             block_bias=delays.block_bias,
+            block_scale=delays.block_scale,
+            shape=delays.shape,
+            day_sigma=delays.day_sigma,
             predictor=delays.predictor,
         )
         cfg = cfg0.replace(

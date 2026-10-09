@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-09
+
+### Added
+
+- Real airline data: `History` reads BTS monthly (PREZIP) and download
+  formats, filters by `carrier`, infers airport time-zone offsets from
+  scheduled block times so multi-zone rotations line up, repairs broken
+  rotations (`schedule(repair=True)`) and rebuilds the live state at any
+  time (`state(date, now)`).
+- `fit_turn_times`; `DelayModel.block_scale`, an empirical delay `shape`
+  and a day-level common shock `day_sigma`, all fitted by
+  `fit_delay_model` / `calibrate`.
+- `backtest(live_at=...)` scores live re-forecasts against day-ahead ones.
+- CLI: `simulsi aviation history`; `calibrate`/`backtest` gain `--carrier`,
+  `--clock`, `--fit-turns`, `--write-ops`, `--days`, `--skip-days`,
+  `--live-at`.
+- Case study on Alaska Airlines' June 2026 BTS data
+  (`scripts/case_study_bts.py`, docs page): calibrated OTP error 6.0 vs 8.9
+  points; live Brier 0.136 vs 0.162 day ahead by 18:00.
+
 ## [0.7.0] - 2026-10-07
 
 ### Added

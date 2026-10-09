@@ -256,3 +256,137 @@ def test_dashboard_forecast_endpoint() -> None:
     json.dumps(out, allow_nan=False)
     with pytest.raises(ConfigError, match="status"):
         aviation_forecast({**ex, "status_csv": "", "now": "12:00", "replications": 5})
+
+
+def _prezip(tmp_path: Path) -> Path:
+    # SEA is 3 h behind JFK; one aircraft flies SEA-JFK-SEA, local clock times
+    path = tmp_path / "prezip.csv"
+    rows = [
+        "FlightDate,Reporting_Airline,Flight_Number_Reporting_Airline,Tail_Number,Origin,Dest,CRSDepTime,DepDelay,CRSArrTime,ArrDelay,Cancelled,CRSElapsedTime",
+    ]
+    for day in ("2026-06-01", "2026-06-02"):
+        rows += [
+            f"{day},AS,10,N1,SEA,JFK,0700,5.00,1520,-3.00,0.00,320.00",
+            f"{day},AS,11,N1,JFK,SEA,1630,40.00,1950,30.00,0.00,380.00",
+            f"{day},AS,12,N1,SEA,PDX,2100,,2150,,1.00,50.00",
+            f"{day},DL,99,N9,JFK,ATL,0800,0.00,1030,0.00,0.00,150.00",
+        ]
+    path.write_text("\n".join(rows) + "\n")
+    return path
+
+
+def test_history_reads_prezip_and_aligns_time_zones(tmp_path: Path) -> None:
+    h = History.from_csv(_prezip(tmp_path), carrier="AS")
+    assert h.clock == "JFK" and h.tz_offsets == {"JFK": 0.0, "SEA": -180.0, "PDX": -180.0}
+    s = h.schedule("2026-06-01")
+    assert s.validate() == [] and {f.id for f in s} == {"AS10", "AS11", "AS12"}
+    out = s.by_id["AS10"]
+    assert out.std == 10 * 60 and out.sta == 10 * 60 + 320  # 07:00 Seattle = 10:00 New York
+    back = s.by_id["AS11"]
+    assert back.std == 16 * 60 + 30 and back.sta == back.std + 380
+    flown = {a.flight.id: a for a in h.day("2026-06-01")}
+    assert flown["AS11"].dep_delay == 40 and flown["AS12"].cancelled
+    state = h.state("2026-06-01", 17 * 60 + 30)
+    assert state.flights["AS10"].ata is not None and state.flights["AS11"].atd == 17 * 60 + 10
+    assert "AS12" not in state.flights
+    assert History.from_csv(_prezip(tmp_path), carrier="AS", clock="SEA").tz_offsets["JFK"] == 180
+
+
+def test_schedule_repair_splits_broken_rotations() -> None:
+    from simulsi.aviation import Flight
+    from simulsi.aviation.calibration import ActualFlight
+
+    legs = [
+        ActualFlight("d", Flight("A", "T", "SEA", "PDX", 600, 650), 600, 650, False),
+        ActualFlight("d", Flight("B", "T", "LAX", "SEA", 800, 950), 800, 950, False),  # missing leg
+    ]
+    h = History(legs)
+    assert h.schedule("d", repair=False).validate()
+    fixed = h.schedule("d")
+    assert fixed.validate() == [] and fixed.by_id["B"].tail == "T#2"
+
+
+def test_fitted_turns_shape_and_day_effect(schedule: Schedule) -> None:
+    from simulsi.aviation import fit_turn_times
+
+    truth = HUB.replace(delays=DelayModel(prob=0.3, mean=35, day_sigma=0.6))
+    history = History.simulated(schedule, truth, days=15, seed=4)
+    turns = fit_turn_times(history, min_samples=5)
+    assert 25 < turns["HUB"] < 60
+    quick = fit_delay_model(history, min_samples=10_000)
+    sh = quick.shape
+    assert len(sh) == 41 and (sum(sh) - (sh[0] + sh[-1]) / 2) / 40 == pytest.approx(1)
+    model = calibrate(history, HUB, iterations=3, replications=4, max_days=3)
+    assert model.day_sigma > 0.1
+    back = DelayModel.from_dict(model.to_dict())
+    assert back.shape == pytest.approx(model.shape, abs=1e-4) and back.day_sigma == model.day_sigma
+
+
+def test_backtest_scores_live_reforecasts(schedule: Schedule) -> None:
+    history = History.simulated(schedule, HUB, days=3, seed=2)
+    res = backtest(history, HUB, replications=10, live_at=[600, 960])
+    assert [r["at"] for r in res.live] == ["10:00", "16:00"]
+    assert res.live[0]["flights_scored"] > res.live[1]["flights_scored"]
+
+
+def test_cli_history_and_bts_options(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    path = str(_prezip(tmp_path))
+    assert main(["aviation", "history", path, "--carrier", "AS"]) == 0
+    assert "JFK clock" in capsys.readouterr().out
+    sched, status = tmp_path / "s.csv", tmp_path / "st.csv"
+    assert (
+        main(
+            [
+                "aviation",
+                "history",
+                path,
+                "--carrier",
+                "AS",
+                "--date",
+                "2026-06-01",
+                "-o",
+                str(sched),
+                "--status-at",
+                "12:00",
+                "--status-out",
+                str(status),
+            ]
+        )
+        == 0
+    )
+    assert Schedule.from_csv(sched).validate() == []
+    assert (
+        main(
+            [
+                "aviation",
+                "calibrate",
+                path,
+                "--carrier",
+                "AS",
+                "--quick",
+                "--fit-turns",
+                "--write-ops",
+                str(tmp_path / "ops.yaml"),
+            ]
+        )
+        == 0
+    )
+    assert "delays:" in (tmp_path / "ops.yaml").read_text()
+    assert (
+        main(
+            [
+                "aviation",
+                "backtest",
+                path,
+                "--carrier",
+                "AS",
+                "--ops",
+                str(tmp_path / "ops.yaml"),
+                "-r",
+                "5",
+                "--live-at",
+                "12:00",
+            ]
+        )
+        == 0
+    )

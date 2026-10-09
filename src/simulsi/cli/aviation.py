@@ -231,13 +231,34 @@ def cmd_impact(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _history(args: argparse.Namespace) -> Any:
+    from simulsi.aviation import History
+
+    return History.from_csv(args.history, carrier=args.carrier, clock=args.clock)
+
+
+def _subset(history: Any, dates: list[str]) -> Any:
+    from simulsi.aviation import History
+
+    keep = set(dates)
+    return History(
+        [a for a in history.flights if a.date in keep], history.tz_offsets, history.clock
+    )
+
+
 def cmd_calibrate(args: argparse.Namespace) -> int:
     import yaml
 
-    from simulsi.aviation import History, calibrate, fit_delay_model
+    from simulsi.aviation import calibrate, fit_delay_model, fit_turn_times
 
-    history = History.from_csv(args.history)
+    history = _history(args)
+    if args.days:
+        history = _subset(history, history.dates[: args.days])
     _, cfg, _ = _load_config_only(args)
+    if args.fit_turns:
+        cfg = cfg.replace(
+            min_turn_by_airport={**fit_turn_times(history), **cfg.min_turn_by_airport}
+        )
     if args.quick:
         model = fit_delay_model(history, min_turn=cfg.min_turn, by=args.by)
     else:
@@ -245,28 +266,68 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
     text = yaml.safe_dump(model.to_dict(), sort_keys=False)
     if args.output:
         Path(args.output).write_text(text)
+    if args.write_ops:
+        cfg.replace(delays=model).to_yaml(args.write_ops)
     summary = history.summary()
     _out(
         f"history: {summary['days']:.0f} days, {summary['flights']:.0f} flights, "
         f"OTP {summary['otp']:.1%}, mean departure delay {summary['dep_delay.mean']:.1f} min"
+        + (f"; times on the {history.clock} clock" if history.clock else "")
     )
     _out(text.rstrip())
     if args.output:
         _out(
             f"wrote {args.output} (use it with --delays, or 'delays: {Path(args.output).name}' in ops.yaml)"
         )
+    if args.write_ops:
+        _out(f"wrote {args.write_ops} (operating rules with the fitted delays and turn times)")
     return EXIT_OK
 
 
 def cmd_backtest(args: argparse.Namespace) -> int:
-    from simulsi.aviation import History, backtest
+    from simulsi.aviation import backtest, parse_time
 
-    history = History.from_csv(args.history)
+    history = _history(args)
     _, cfg, _ = _load_config_only(args)
+    dates = args.date or history.dates[args.skip_days :]
     res = backtest(
-        history, cfg, replications=args.replications, seed=args.seed, dates=args.date or None
+        history,
+        cfg,
+        replications=args.replications,
+        seed=args.seed,
+        dates=dates,
+        live_at=[parse_time(t) for t in args.live_at or []],
     )
     _emit(args, res.to_dict(), res.format())
+    return EXIT_OK
+
+
+def cmd_history(args: argparse.Namespace) -> int:
+    from simulsi.aviation import parse_time
+
+    history = _history(args)
+    summary = history.summary()
+    if not args.date:
+        _out(
+            f"{summary['days']:.0f} days ({history.dates[0]} to {history.dates[-1]}), "
+            f"{summary['flights']:,.0f} flights, OTP {summary['otp']:.1%}"
+            + (f"; times on the {history.clock} clock" if history.clock else "")
+        )
+        if history.tz_offsets:
+            offsets = sorted(history.tz_offsets.items(), key=lambda kv: (kv[1], kv[0]))
+            _out("clock offsets (min): " + ", ".join(f"{a} {v:+.0f}" for a, v in offsets[:40]))
+        return EXIT_OK
+    schedule = history.schedule(args.date)
+    if args.output:
+        schedule.to_csv(args.output)
+        _out(f"wrote {args.output}: {schedule}")
+    if args.status_at:
+        if not args.status_out:
+            raise ConfigError("--status-at needs --status-out FILE")
+        history.state(args.date, parse_time(args.status_at)).to_csv(args.status_out)
+        _out(f"wrote {args.status_out}: what was known at {args.status_at}")
+    if not args.output and not args.status_at:
+        _out(str(schedule))
     return EXIT_OK
 
 
@@ -432,10 +493,22 @@ def add_parser(sub: Any) -> None:
     s.add_argument("--changed-connections")
     s.set_defaults(func=cmd_impact, replications=100)
 
+    def bts(s: argparse.ArgumentParser) -> None:
+        s.add_argument("history", help="actual flights CSV (generic, or a US BTS on-time file)")
+        s.add_argument("--carrier", help="keep one airline, e.g. AS (BTS files hold all of them)")
+        s.add_argument("--clock", help="airport whose local time is used for all times")
+
     s = asub.add_parser("calibrate", help="fit the delay model to history (generic or BTS CSV)")
-    s.add_argument("history")
+    bts(s)
     s.add_argument("--ops", help="operating rules used when re-simulating history")
     s.add_argument("--output", "-o", help="write the delay model YAML")
+    s.add_argument("--write-ops", metavar="FILE", help="write full operating rules with the fit")
+    s.add_argument(
+        "--fit-turns", action="store_true", help="also fit minimum turn times per airport"
+    )
+    s.add_argument(
+        "--days", type=int, help="use only the first N days (keep the rest for a backtest)"
+    )
     s.add_argument("--quick", action="store_true", help="direct estimate only, no simulation loop")
     s.add_argument("--by", choices=["origin", "origin_hour"], default="origin")
     s.add_argument("--iterations", type=int, default=6)
@@ -443,14 +516,33 @@ def add_parser(sub: Any) -> None:
     s.set_defaults(func=cmd_calibrate)
 
     s = asub.add_parser("backtest", help="forecast past days and score the forecasts")
-    s.add_argument("history")
+    bts(s)
     s.add_argument("--ops")
     s.add_argument("--delays")
     s.add_argument("--date", action="append", help="only these dates (YYYY-MM-DD)")
+    s.add_argument(
+        "--skip-days", type=int, default=0, help="skip the first N days (the training days)"
+    )
+    s.add_argument(
+        "--live-at",
+        action="append",
+        metavar="HH:MM",
+        help="also score live re-forecasts at this time",
+    )
     s.add_argument("--replications", "-r", type=int, default=100)
     s.add_argument("--seed", type=int, default=0)
     s.add_argument("--json", action="store_true")
     s.set_defaults(func=cmd_backtest)
+
+    s = asub.add_parser(
+        "history", help="summarise history, or extract one day's schedule and live status"
+    )
+    bts(s)
+    s.add_argument("--date", help="the day to extract (YYYY-MM-DD)")
+    s.add_argument("--output", "-o", help="write that day's schedule CSV")
+    s.add_argument("--status-at", metavar="HH:MM", help="also write what was known at this time")
+    s.add_argument("--status-out", metavar="FILE")
+    s.set_defaults(func=cmd_history)
 
     s = asub.add_parser("turnaround", help="turnaround critical path and minimum turn time")
     s.add_argument("--reliability", type=float, default=0.95)

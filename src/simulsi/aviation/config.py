@@ -38,6 +38,14 @@ class DelayModel:
     (``"LHR-CDG"``). ``predictor`` - for example a machine-learning model -
     returns the expected primary delay of a flight; the simulation then
     samples around that expectation and propagates it through the network.
+
+    ``shape`` replaces the exponential with an empirical distribution:
+    equally spaced quantiles of primary delay divided by their mean (so
+    ``mean`` still sets the size). Real delays have heavier tails than an
+    exponential; :func:`~simulsi.aviation.fit_delay_model` fills it in.
+    ``day_sigma`` makes whole days better or worse together (weather, ATC
+    programmes): each simulated day draws a lognormal factor on every
+    delay chance.
     """
 
     prob: float = 0.2
@@ -45,22 +53,42 @@ class DelayModel:
     block_cv: float = 0.06
     table: dict[str, tuple[float, float]] = field(default_factory=dict)
     block_bias: dict[str, float] = field(default_factory=dict)
+    block_scale: float = 1.0
+    shape: list[float] = field(default_factory=list)
+    day_sigma: float = 0.0
     predictor: DelayPredictor | None = None
 
-    def primary(self, flight: Flight, rs: RandomStream) -> float:
+    def day_factor(self, rs: RandomStream) -> float:
+        """How bad the whole day is: multiplies every flight's delay chance (mean 1)."""
+        if self.day_sigma <= 0:
+            return 1.0
+        return math.exp(rs.normal(-0.5 * self.day_sigma**2, self.day_sigma))
+
+    def _size(self, mean: float, rs: RandomStream) -> float:
+        if not self.shape:
+            return rs.exponential(mean)
+        u = rs.random() * (len(self.shape) - 1)
+        k = int(u)
+        lo = self.shape[k]
+        hi = self.shape[min(k + 1, len(self.shape) - 1)]
+        return mean * (lo + (hi - lo) * (u - k))
+
+    def primary(self, flight: Flight, rs: RandomStream, day: float = 1.0) -> float:
         if self.predictor is not None:
-            expected = max(0.0, float(self.predictor(flight)))
-            return rs.exponential(expected) if expected > 0 else 0.0
+            expected = max(0.0, float(self.predictor(flight))) * day
+            return self._size(expected, rs) if expected > 0 else 0.0
         hour = int(flight.std // 60) % 24
         prob, mean = self.table.get(
             f"{flight.origin}@{hour:02d}", self.table.get(flight.origin, (self.prob, self.mean))
         )
-        if prob <= 0 or rs.random() >= prob:
+        if prob <= 0 or rs.random() >= min(1.0, prob * day):
             return 0.0
-        return rs.exponential(mean)
+        return self._size(mean, rs)
 
     def block(self, flight: Flight, rs: RandomStream) -> float:
-        planned = flight.block * self.block_bias.get(f"{flight.origin}-{flight.dest}", 1.0)
+        planned = flight.block * self.block_bias.get(
+            f"{flight.origin}-{flight.dest}", self.block_scale
+        )
         if self.block_cv <= 0:
             return planned
         sigma = math.sqrt(math.log1p(self.block_cv**2))
@@ -73,11 +101,23 @@ class DelayModel:
             "block_cv": self.block_cv,
             "table": {k: list(v) for k, v in self.table.items()},
             "block_bias": dict(self.block_bias),
+            "block_scale": self.block_scale,
+            "shape": [round(x, 4) for x in self.shape],
+            "day_sigma": self.day_sigma,
         }
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> DelayModel:
-        known = {"prob", "mean", "block_cv", "table", "block_bias"}
+        known = {
+            "prob",
+            "mean",
+            "block_cv",
+            "table",
+            "block_bias",
+            "block_scale",
+            "shape",
+            "day_sigma",
+        }
         extra = set(data) - known
         if extra:
             raise ConfigError(f"unknown delay settings: {', '.join(sorted(extra))}")
@@ -88,6 +128,9 @@ class DelayModel:
             block_cv=float(data.get("block_cv", 0.06)),
             table=table,
             block_bias={str(k): float(v) for k, v in (data.get("block_bias") or {}).items()},
+            block_scale=float(data.get("block_scale", 1.0)),
+            shape=[float(x) for x in data.get("shape") or []],
+            day_sigma=float(data.get("day_sigma", 0.0)),
         )
 
 

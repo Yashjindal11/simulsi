@@ -187,7 +187,10 @@ simulsi aviation recover schedule.csv -c connections.csv --ops ops.yaml --status
 ```
 
 The dashboard has an *Airline ops twin* page with a Gantt chart of the
-rotations. See [Airline operations](docs/aviation.md).
+rotations. See [Airline operations](docs/aviation.md) and the
+[Alaska Airlines case study](docs/case-study-bts.md) on a month of public BTS
+data (calibrated forecasts, then live re-forecasts that beat the day-ahead
+ones by 16% on Brier score by evening).
 
 ## Examples
 

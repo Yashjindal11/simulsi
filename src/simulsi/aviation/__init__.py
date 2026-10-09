@@ -23,6 +23,7 @@ from simulsi.aviation.calibration import (
     backtest,
     calibrate,
     fit_delay_model,
+    fit_turn_times,
     reliability_table,
 )
 from simulsi.aviation.config import (
@@ -81,6 +82,7 @@ __all__ = [
     "compare_plans",
     "eu261_compensation",
     "fit_delay_model",
+    "fit_turn_times",
     "forecast",
     "format_time",
     "morning_fog",

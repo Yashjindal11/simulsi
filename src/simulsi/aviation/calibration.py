@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import csv
 import math
+from collections import Counter, deque
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -25,25 +27,30 @@ import numpy as np
 from simulsi.aviation.config import DelayModel, OpsConfig
 from simulsi.aviation.engine import simulate_day
 from simulsi.aviation.forecast import forecast
-from simulsi.aviation.schedule import Flight, Schedule, parse_time
+from simulsi.aviation.schedule import Flight, Schedule, format_time, parse_time
+from simulsi.aviation.state import FlightStatus, OpsState
 from simulsi.errors import ConfigError
 from simulsi.randomness.stream import derive_seed
 
 _HIST_ALIASES = {
-    "date": ("date", "fl_date", "day"),
+    "date": ("date", "fl_date", "flightdate", "day"),
     "id": ("flight", "flight_id", "id"),
-    "tail": ("tail", "tail_num", "registration"),
+    "tail": ("tail", "tail_num", "tail_number", "registration"),
     "origin": ("origin",),
     "dest": ("dest", "destination"),
-    "std": ("std", "crs_dep_time", "sched_dep"),
-    "sta": ("sta", "crs_arr_time", "sched_arr"),
-    "atd": ("atd", "dep_time", "actual_dep"),
-    "ata": ("ata", "arr_time", "actual_arr"),
-    "dep_delay": ("dep_delay",),
-    "arr_delay": ("arr_delay",),
+    "std": ("std", "crs_dep_time", "crsdeptime", "sched_dep"),
+    "sta": ("sta", "crs_arr_time", "crsarrtime", "sched_arr"),
+    "atd": ("atd", "dep_time", "deptime", "actual_dep"),
+    "ata": ("ata", "arr_time", "arrtime", "actual_arr"),
+    "dep_delay": ("dep_delay", "depdelay"),
+    "arr_delay": ("arr_delay", "arrdelay"),
     "cancelled": ("cancelled", "canceled"),
     "pax": ("pax", "passengers"),
+    "elapsed": ("crs_elapsed_time", "crselapsedtime", "sched_block"),
+    "carrier": ("op_unique_carrier", "op_carrier", "reporting_airline", "carrier", "airline"),
+    "number": ("op_carrier_fl_num", "flight_number_reporting_airline", "flight_number"),
 }
+_TRUE = {"1", "1.0", "1.00", "true", "yes", "y"}
 
 
 @dataclass
@@ -65,9 +72,18 @@ class ActualFlight:
 
 @dataclass
 class History:
-    """Actual flights over several days."""
+    """Actual flights over several days.
+
+    When the file has scheduled block times (BTS ``CRSElapsedTime``), local
+    clock times are converted to one clock - the easternmost airport's,
+    or ``clock`` - using UTC offsets inferred from the data itself
+    (``tz_offsets``, minutes relative to that clock), so rotations through
+    several time zones line up.
+    """
 
     flights: list[ActualFlight] = field(default_factory=list)
+    tz_offsets: dict[str, float] = field(default_factory=dict)
+    clock: str = ""
 
     @property
     def dates(self) -> list[str]:
@@ -76,8 +92,37 @@ class History:
     def day(self, date: str) -> list[ActualFlight]:
         return [a for a in self.flights if a.date == date]
 
-    def schedule(self, date: str) -> Schedule:
-        return Schedule([a.flight for a in self.day(date)])
+    def schedule(self, date: str, *, repair: bool = True) -> Schedule:
+        """The day's schedule. With ``repair``, a tail whose recorded legs do not chain (a
+        diverted or missing flight, overlapping times) is split into separate rotations
+        (``N123#2``) at each break, so the schedule always validates."""
+        flights = [a.flight for a in self.day(date)]
+        if not repair:
+            return Schedule(flights)
+        by_tail: dict[str, list[Flight]] = {}
+        for f in sorted(flights, key=lambda f: (f.std, f.id)):
+            by_tail.setdefault(f.tail, []).append(f)
+        out: list[Flight] = []
+        for tail, legs in by_tail.items():
+            part, prev = 1, None
+            for f in legs:
+                if prev is not None and (prev.dest != f.origin or f.std < prev.sta):
+                    part += 1
+                out.append(f if part == 1 else replace(f, tail=f"{tail}#{part}"))
+                prev = f
+        return Schedule(out)
+
+    def state(self, date: str, now: float) -> OpsState:
+        """What was known at ``now`` on ``date``: departures, arrivals and cancellations so far."""
+        flights: dict[str, FlightStatus] = {}
+        for a in self.day(date):
+            f = a.flight
+            if a.cancelled:
+                if f.std - 60 <= now:
+                    flights[f.id] = FlightStatus(cancelled=True)
+            elif a.atd <= now:
+                flights[f.id] = FlightStatus(atd=a.atd, ata=a.ata if a.ata <= now else None)
+        return OpsState(now, flights)
 
     def summary(self) -> dict[str, float]:
         flown = [a for a in self.flights if not a.cancelled]
@@ -92,82 +137,86 @@ class History:
         }
 
     @classmethod
-    def from_records(cls, rows: Iterable[Mapping[str, Any]]) -> History:
+    def from_records(
+        cls,
+        rows: Iterable[Mapping[str, Any]],
+        *,
+        carrier: str | None = None,
+        clock: str | None = None,
+    ) -> History:
         """Rows with date, flight, tail, origin, dest, std, sta, atd/ata (or dep_delay/arr_delay), cancelled.
 
         Times may be ``HH:MM``, minutes or ``HHMM`` (BTS style, e.g. ``0730``).
+        ``carrier`` keeps one airline's flights (BTS files hold all of them).
         """
         rows = [{str(k).strip().lower(): v for k, v in r.items()} for r in rows]
         if not rows:
             raise ConfigError("history is empty")
         cols = set().union(*(r.keys() for r in rows))
         col = {k: next((n for n in names if n in cols), "") for k, names in _HIST_ALIASES.items()}
-        carrier = next((n for n in ("op_unique_carrier", "op_carrier", "carrier") if n in cols), "")
-        flno = "op_carrier_fl_num" if "op_carrier_fl_num" in cols else ""
         need = ["date", "origin", "dest", "std", "sta"]
-        missing = [k for k in need if not col[k]] + ([] if col["id"] or flno else ["id"])
+        missing = [k for k in need if not col[k]] + ([] if col["id"] or col["number"] else ["id"])
         if missing:
             raise ConfigError(f"history is missing columns {missing}")
-        out = []
-        counter: dict[tuple[str, str], int] = {}
+        if carrier and col["carrier"]:
+            rows = [r for r in rows if str(r[col["carrier"]]).strip().upper() == carrier.upper()]
+            if not rows:
+                raise ConfigError(f"no flights for carrier {carrier!r}")
+        parsed = []
         for n, r in enumerate(rows, 1):
             try:
-                date = str(r[col["date"]]).strip()[:10]
-                fid = (
-                    str(r[col["id"]]).strip()
-                    if col["id"]
-                    else f"{r.get(carrier, '')}{r[flno]}".strip()
-                )
-                key = (date, fid)
-                counter[key] = counter.get(key, 0) + 1
-                if counter[key] > 1:
-                    fid = f"{fid}.{counter[key]}"
-                std, sta = _hhmm(r[col["std"]]), _hhmm(r[col["sta"]])
-                if sta < std:
-                    sta += 1440
-                cancelled = str(r.get(col["cancelled"], "") or "0").strip().lower() in {
-                    "1",
-                    "1.0",
-                    "true",
-                    "yes",
-                    "y",
-                }
-                tail = str(r.get(col["tail"], "") or "").strip() or f"?{fid}"
-                pax = (
-                    int(float(r[col["pax"]])) if col["pax"] and str(r[col["pax"]]).strip() else 150
-                )
-                f = Flight(
-                    fid,
-                    tail,
-                    str(r[col["origin"]]).strip().upper(),
-                    str(r[col["dest"]]).strip().upper(),
-                    std,
-                    sta,
-                    pax,
-                )
-                atd, ata = math.nan, math.nan
-                if not cancelled:
-                    if col["dep_delay"] and str(r[col["dep_delay"]]).strip():
-                        atd = std + float(r[col["dep_delay"]])
-                    elif col["atd"] and str(r[col["atd"]]).strip():
-                        atd = _actual(_hhmm(r[col["atd"]]), std)
-                    if col["arr_delay"] and str(r[col["arr_delay"]]).strip():
-                        ata = sta + float(r[col["arr_delay"]])
-                    elif col["ata"] and str(r[col["ata"]]).strip():
-                        ata = _actual(_hhmm(r[col["ata"]]), sta)
-                    if math.isnan(atd) or math.isnan(ata):
-                        continue  # diverted or incomplete
-                out.append(ActualFlight(date, f, atd, ata, cancelled))
+                parsed.append(_parse_row(r, col))
             except (KeyError, ValueError, ConfigError) as exc:
                 raise ConfigError(f"history row {n}: {exc}") from exc
-        return cls(out)
+        offsets: dict[str, float] = {}
+        if col["elapsed"]:
+            offsets = _tz_offsets(parsed, clock)
+        out = []
+        counter: dict[tuple[str, str], int] = {}
+        for p in parsed:
+            if p is None:
+                continue
+            date, fid, tail, o, d, std, sta, elapsed, dep_delay, arr_delay, cancelled, pax = p
+            counter[(date, fid)] = counter.get((date, fid), 0) + 1
+            if counter[(date, fid)] > 1:
+                fid = f"{fid}.{counter[(date, fid)]}"
+            if offsets and elapsed is not None and o in offsets:
+                std = std - offsets[o]
+                sta = std + elapsed
+            elif sta < std:
+                sta += 1440
+            if not cancelled and (dep_delay is None or arr_delay is None):
+                continue  # diverted or incomplete
+            f = Flight(fid, tail or f"?{fid}", o, d, std, sta, pax)
+            atd = math.nan if cancelled else std + float(dep_delay or 0.0)
+            ata = math.nan if cancelled else sta + float(arr_delay or 0.0)
+            out.append(ActualFlight(date, f, atd, ata, cancelled))
+        ref = ""
+        if offsets:
+            ref = clock.upper() if clock else max(offsets, key=lambda a: (offsets[a] == 0, a))
+        return cls(out, offsets, ref)
 
     @classmethod
-    def from_csv(cls, path: str | Path) -> History:
-        """A history CSV - including US BTS on-time files (FL_DATE, TAIL_NUM, CRS_DEP_TIME, ...)."""
+    def from_csv(
+        cls, path: str | Path, *, carrier: str | None = None, clock: str | None = None
+    ) -> History:
+        """A history CSV, including US BTS on-time files (both the download-form names such as
+        ``FL_DATE, TAIL_NUM, CRS_DEP_TIME`` and the monthly PREZIP names such as
+        ``FlightDate, Tail_Number, CRSDepTime``). ``carrier`` filters while reading."""
         try:
             with Path(path).open(newline="") as fh:
-                return cls.from_records(csv.DictReader(fh))
+                reader = csv.DictReader(fh)
+                if carrier:
+                    names = {str(n).strip().lower(): n for n in reader.fieldnames or []}
+                    key = next((names[n] for n in _HIST_ALIASES["carrier"] if n in names), None)
+                    rows: Iterable[Mapping[str, Any]] = (
+                        r
+                        for r in reader
+                        if key is None or str(r[key]).strip().upper() == carrier.upper()
+                    )
+                else:
+                    rows = reader
+                return cls.from_records(list(rows), carrier=carrier, clock=clock)
         except OSError as exc:
             raise ConfigError(f"cannot read {path}: {exc}") from exc
 
@@ -244,6 +293,67 @@ def _hhmm(value: Any) -> float:
     return parse_time(text)
 
 
+def _parse_row(r: Mapping[str, Any], col: Mapping[str, str]) -> tuple[Any, ...] | None:
+    def text(key: str) -> str:
+        return str(r.get(col[key], "") or "").strip() if col[key] else ""
+
+    date = text("date")[:10]
+    fid = text("id") or f"{text('carrier')}{text('number')}"
+    std, sta = _hhmm(r[col["std"]]), _hhmm(r[col["sta"]])
+    cancelled = text("cancelled").lower() in _TRUE
+    elapsed = float(text("elapsed")) if text("elapsed") else None
+    dep_delay = arr_delay = None
+    if not cancelled:
+        if text("dep_delay"):
+            dep_delay = float(text("dep_delay"))
+        elif text("atd"):
+            dep_delay = _actual(_hhmm(text("atd")), std) - std
+        if text("arr_delay"):
+            arr_delay = float(text("arr_delay"))
+        elif text("ata"):
+            arr_delay = _actual(_hhmm(text("ata")), sta if sta >= std else sta + 1440) - (
+                sta if sta >= std else sta + 1440
+            )
+    pax = int(float(text("pax"))) if text("pax") else 150
+    o, d = text("origin").upper(), text("dest").upper()
+    return (date, fid, text("tail"), o, d, std, sta, elapsed, dep_delay, arr_delay, cancelled, pax)
+
+
+def _tz_offsets(parsed: Sequence[tuple[Any, ...] | None], clock: str | None) -> dict[str, float]:
+    """UTC offsets (minutes, relative to the reference airport) implied by local times and block times."""
+    votes: dict[tuple[str, str], Counter[float]] = {}
+    for p in parsed:
+        if p is None or p[7] is None:
+            continue
+        _, _, _, o, d, std, sta, elapsed = p[:8]
+        diff = ((sta - std - elapsed) + 720) % 1440 - 720
+        votes.setdefault((o, d), Counter())[round(diff / 30) * 30.0] += 1
+    graph: dict[str, list[tuple[str, float]]] = {}
+    for (o, d), c in votes.items():
+        diff = c.most_common(1)[0][0]
+        graph.setdefault(o, []).append((d, diff))
+        graph.setdefault(d, []).append((o, -diff))
+    if not graph:
+        return {}
+    offsets: dict[str, float] = {}
+    for start in sorted(graph, key=lambda a: -len(graph[a])):
+        if start in offsets:
+            continue
+        offsets[start] = 0.0
+        queue = deque([start])
+        while queue:
+            a = queue.popleft()
+            for b, diff in graph[a]:
+                if b not in offsets:
+                    offsets[b] = offsets[a] + diff
+                    queue.append(b)
+    ref = clock.upper() if clock else max(offsets, key=lambda a: (offsets[a], a))
+    if ref not in offsets:
+        raise ConfigError(f"clock airport {ref!r} is not in the history")
+    base = offsets[ref]
+    return {a: v - base for a, v in offsets.items()}
+
+
 def _actual(t: float, sched: float) -> float:
     """Actual clock time nearest to the scheduled time (handles crossing midnight)."""
     return min((t + k * 1440 for k in (-1, 0, 1)), key=lambda x: abs(x - sched))
@@ -256,6 +366,7 @@ def fit_delay_model(
     by: str = "origin",
     min_samples: int = 30,
     threshold: float = 1.0,
+    empirical: bool = True,
 ) -> DelayModel:
     """Estimate primary-delay rates and block-time variability from history.
 
@@ -306,15 +417,49 @@ def fit_delay_model(
             p, m = rate(values)
             table[key] = (round(p, 4), round(m, 2))
     all_ratios = [r for rs in ratios.values() for r in rs]
-    cv = float(np.std(all_ratios) / np.mean(all_ratios)) if len(all_ratios) > 1 else 0.06
+    scale = float(np.mean(all_ratios)) if all_ratios else 1.0
+    within = [r / float(np.mean(rs)) for rs in ratios.values() if len(rs) >= 3 for r in rs]
+    cv = float(np.std(within)) if len(within) > 1 else 0.06
     bias = {k: round(float(np.mean(v)), 4) for k, v in ratios.items() if len(v) >= min_samples}
+    hits = np.array([v for _, v in prim if v > threshold])
+    shape: list[float] = []
+    if empirical and len(hits) >= 200:
+        q = np.quantile(hits, np.linspace(0, 1, 41))
+        sampled_mean = (q.sum() - (q[0] + q[-1]) / 2) / (
+            len(q) - 1
+        )  # mean of the interpolated draw
+        shape = [float(x) for x in q / sampled_mean]
     return DelayModel(
         prob=round(prob, 4),
         mean=round(mean, 2),
         block_cv=round(cv, 4),
         table=table,
         block_bias=bias,
+        block_scale=round(scale, 4),
+        shape=shape,
     )
+
+
+def fit_turn_times(
+    history: History, *, quantile: float = 0.1, min_samples: int = 20, floor: float = 15.0
+) -> dict[str, float]:
+    """Minimum turn time per airport: a low quantile of the actual ground times between
+    consecutive legs of the same aircraft (the fastest turns the operation achieves)."""
+    ground: dict[str, list[float]] = {}
+    by_day_tail: dict[tuple[str, str], list[ActualFlight]] = {}
+    for a in history.flights:
+        if not a.cancelled and not a.flight.tail.startswith("?"):
+            by_day_tail.setdefault((a.date, a.flight.tail), []).append(a)
+    for legs in by_day_tail.values():
+        legs.sort(key=lambda a: a.flight.std)
+        for prev, nxt in pairwise(legs):
+            if prev.flight.dest == nxt.flight.origin and nxt.atd > prev.ata:
+                ground.setdefault(nxt.flight.origin, []).append(nxt.atd - prev.ata)
+    return {
+        a: round(max(floor, float(np.quantile(v, quantile))), 1)
+        for a, v in sorted(ground.items())
+        if len(v) >= min_samples
+    }
 
 
 def calibrate(
@@ -326,6 +471,7 @@ def calibrate(
     max_days: int = 7,
     seed: int = 0,
     late: float = 15.0,
+    day_effect: bool = True,
 ) -> DelayModel:
     """Fit primary delays so that *simulated* departures look like history.
 
@@ -336,7 +482,8 @@ def calibrate(
     and nudges each airport's primary-delay probability and mean until
     the simulated share of departures more than ``late`` minutes late and
     the mean departure delay match the history (a simple
-    method-of-simulated-moments loop).
+    method-of-simulated-moments loop). With ``day_effect`` it then sets
+    ``day_sigma`` so simulated days vary as much as real ones do.
     """
     cfg = config or OpsConfig()
     model = fit_delay_model(history, min_turn=cfg.min_turn, threshold=5.0)
@@ -371,7 +518,57 @@ def calibrate(
                 )
     model.prob, model.mean = round(model.prob, 4), round(model.mean, 2)
     model.table = {k: (round(p, 4), round(m, 2)) for k, (p, m) in model.table.items()}
+    if day_effect:
+        model.day_sigma = _fit_day_sigma(history, cfg, model, schedules, replications, seed, late)
     return model
+
+
+def _late_share_spread(
+    cfg: OpsConfig,
+    model: DelayModel,
+    schedules: Sequence[Schedule],
+    reps: int,
+    seed: int,
+    late: float,
+) -> float:
+    """Standard deviation of log(daily share of late departures) across simulated days."""
+    trial = cfg.replace(delays=model)
+    logs = []
+    for k, sched in enumerate(schedules):
+        for r in range(reps):
+            day = simulate_day(sched, trial, seed=derive_seed(seed, f"spread{k}", r))
+            d = [o.dep_delay for o in day.flights.values() if not o.cancelled]
+            logs.append(math.log(max(0.01, float(np.mean([x > late for x in d])))))
+    return float(np.std(logs))
+
+
+def _fit_day_sigma(
+    history: History,
+    cfg: OpsConfig,
+    model: DelayModel,
+    schedules: Sequence[Schedule],
+    reps: int,
+    seed: int,
+    late: float,
+) -> float:
+    """Day-to-day variation the flight-level randomness does not explain, as a lognormal sigma."""
+    shares = []
+    for date in history.dates:
+        d = [a.dep_delay for a in history.day(date) if not a.cancelled]
+        if d:
+            shares.append(math.log(max(0.01, float(np.mean([x > late for x in d])))))
+    if len(shares) < 5:
+        return 0.0
+    target = float(np.std(shares))
+    base = _late_share_spread(cfg, replace(model, day_sigma=0.0), schedules, reps, seed, late)
+    if target <= base:
+        return 0.0
+    sigma = math.sqrt(target**2 - base**2)
+    for _ in range(2):  # the share of late flights reacts less than one-for-one to the factor
+        got = _late_share_spread(cfg, replace(model, day_sigma=sigma), schedules, reps, seed, late)
+        extra = math.sqrt(max(1e-9, got**2 - base**2))
+        sigma = min(1.5, sigma * math.sqrt(target**2 - base**2) / extra)
+    return round(sigma, 3)
 
 
 def _departure_stats(delays: Sequence[float], late: float) -> tuple[float, float]:
@@ -382,6 +579,7 @@ def _nudge(
     current: tuple[float, float], target: tuple[float, float], simulated: tuple[float, float]
 ) -> tuple[float, float]:
     prob, mean = current
+    prob = max(prob, 0.005)
     (t_late, t_mean), (s_late, s_mean) = target, simulated
     new_prob = min(1.0, max(0.005, prob * t_late / s_late)) if s_late > 0 else prob
     # mean delay scales with prob x mean: what the probability change does not explain goes to the mean
@@ -421,6 +619,7 @@ class BacktestResult:
     brier_climatology: float
     coverage: dict[str, float]
     otp_mae: float
+    live: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def skill(self) -> float:
@@ -442,6 +641,15 @@ class BacktestResult:
                 "reliability of on-time probabilities:",
                 format_table(self.reliability),
             ]
+            + (
+                [
+                    "",
+                    "live re-forecasts (flights not yet departed at that time):",
+                    format_table(self.live),
+                ]
+                if self.live
+                else []
+            )
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -453,6 +661,7 @@ class BacktestResult:
             "skill": self.skill,
             "coverage": self.coverage,
             "otp_mae": self.otp_mae,
+            "live": self.live,
         }
 
 
@@ -463,8 +672,15 @@ def backtest(
     replications: int = 100,
     seed: int = 0,
     dates: Sequence[str] | None = None,
+    live_at: Sequence[float] = (),
 ) -> BacktestResult:
-    """Forecast each historical day from its schedule alone and score the forecasts."""
+    """Forecast each historical day and score the forecasts against what happened.
+
+    Day-ahead forecasts use the schedule alone. For each time in
+    ``live_at`` (minutes on the history's clock) the day is also
+    re-forecast from what was known at that time, and the flights still to
+    depart are scored - showing how much the live state adds.
+    """
     cfg = config or OpsConfig()
     probs: list[float] = []
     outcomes: list[bool] = []
@@ -472,16 +688,16 @@ def backtest(
     n_dep = 0
     rows = []
     errors = []
+    live: dict[float, dict[str, list[float]]] = {
+        t: {"p": [], "y": [], "err": [], "day_p": [], "day_err": []} for t in live_at
+    }
     for date in dates or history.dates:
-        actual = history.day(date)
-        schedule = Schedule([a.flight for a in actual])
-        if schedule.validate():
-            schedule = Schedule([a.flight for a in actual if not a.flight.tail.startswith("?")])
-            if schedule.validate() or not schedule.flights:
-                continue
-            actual = [a for a in actual if a.flight.id in schedule.by_id]
+        schedule = history.schedule(date)
+        if not schedule.flights:
+            continue
+        actual = {a.flight.id: a for a in history.day(date)}
         fc = forecast(schedule, cfg, replications=replications, seed=seed)
-        flown = [a for a in actual if not a.cancelled]
+        flown = [a for a in actual.values() if not a.cancelled]
         act_otp = float(np.mean([a.arr_delay <= cfg.on_time for a in flown])) if flown else math.nan
         pred_otp = fc.summary()["otp"]["mean"]
         errors.append(abs(pred_otp - act_otp))
@@ -494,6 +710,21 @@ def backtest(
                 hits["p50"] += a.dep_delay <= p.dep_delay_p50
                 hits["p80"] += a.dep_delay <= p.dep_delay_p80
                 hits["p95"] += a.dep_delay <= p.dep_delay_p95
+        for t, acc in live.items():
+            lfc = forecast(
+                schedule, cfg, replications=replications, seed=seed, state=history.state(date, t)
+            )
+            for a in flown:
+                if a.flight.std - 60 <= t:
+                    continue  # already decided or departed
+                lp, dp = lfc.flights[a.flight.id], fc.flights[a.flight.id]
+                on_time = float(a.arr_delay <= cfg.on_time)
+                acc["p"].append(lp.p_on_time)
+                acc["y"].append(on_time)
+                acc["day_p"].append(dp.p_on_time)
+                if math.isfinite(lp.arr_delay_mean) and math.isfinite(dp.arr_delay_mean):
+                    acc["err"].append(abs(max(0.0, a.arr_delay) - lp.arr_delay_mean))
+                    acc["day_err"].append(abs(max(0.0, a.arr_delay) - dp.arr_delay_mean))
         rows.append(
             {
                 "date": date,
@@ -501,7 +732,7 @@ def backtest(
                 "predicted_otp": round(pred_otp, 3),
                 "actual_otp": round(act_otp, 3),
                 "predicted_cancelled": round(fc.summary()["cancelled"]["mean"], 2),
-                "actual_cancelled": sum(a.cancelled for a in actual),
+                "actual_cancelled": sum(a.cancelled for a in actual.values()),
             }
         )
     if not probs:
@@ -510,6 +741,23 @@ def backtest(
     y = np.array(outcomes, dtype=float)
     brier = float(np.mean((pr - y) ** 2))
     base = float(np.mean(y))
+    live_rows = []
+    for t, acc in live.items():
+        if not acc["y"]:
+            continue
+        y_live = np.array(acc["y"])
+        live_rows.append(
+            {
+                "at": format_time(t),
+                "flights_scored": len(y_live),
+                "brier_live": round(float(np.mean((np.array(acc["p"]) - y_live) ** 2)), 4),
+                "brier_day_ahead": round(float(np.mean((np.array(acc["day_p"]) - y_live) ** 2)), 4),
+                "mae_live_min": round(float(np.mean(acc["err"])), 1) if acc["err"] else None,
+                "mae_day_ahead_min": round(float(np.mean(acc["day_err"])), 1)
+                if acc["day_err"]
+                else None,
+            }
+        )
     return BacktestResult(
         rows,
         reliability_table(probs, outcomes),
@@ -517,4 +765,5 @@ def backtest(
         float(np.mean((base - y) ** 2)),
         {k: v / n_dep for k, v in hits.items()} if n_dep else {},
         float(np.mean(errors)),
+        live_rows,
     )
