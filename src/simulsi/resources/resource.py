@@ -130,6 +130,7 @@ class Resource:
         self.users: list[Request] = []
         self.down = 0
         self.sim: Simulation | None = None
+        self._watchers: list[int] = []
         if sim is not None:
             sim.add_resource(self)
 
@@ -173,6 +174,11 @@ class Resource:
                 f"resource {self.name!r} is not attached to a simulation; use sim.add_resource()"
             )
         return self.sim
+
+    def _touch(self) -> None:
+        """Mark conditions waiting on this component (``wait_until(..., on=[...])``) for a re-check."""
+        if self._watchers and self.sim is not None:
+            self.sim._dirty.update(self._watchers)
 
     # -- state ---------------------------------------------------------------
 
@@ -226,6 +232,7 @@ class Resource:
             return req
         self._waiting.push(req, priority, req)
         self.queue_length.record(len(self._waiting))
+        self._touch()
         if patience is not None:
             if patience < 0 or math.isnan(patience):
                 raise ValueError("patience must be >= 0")
@@ -283,6 +290,7 @@ class Resource:
             req._patience_event = None
         if req.owner is not None:
             req.owner.held.append(req)
+        self._touch()
         if sim.log is not None:
             sim.log.append(
                 LogRecord(
@@ -300,6 +308,7 @@ class Resource:
             return
         sim = self._require_sim()
         self.queue_length.record(len(self._waiting))
+        self._touch()
         if req._patience_event is not None:
             sim.cancel(req._patience_event)
             req._patience_event = None
@@ -336,6 +345,7 @@ class Resource:
             owner.held.remove(req)
         self.busy.record(len(self.users))
         self.releases.increment()
+        self._touch()
         if sim.log is not None:
             sim.log.append(
                 LogRecord(
@@ -366,6 +376,7 @@ class Resource:
         self.capacity = int(capacity)
         self.capacity_level.record(self.capacity)
         self.effective_level.record(self.effective_capacity)
+        self._touch()
         if sim.log is not None:
             sim.log.append(
                 LogRecord(
@@ -392,6 +403,7 @@ class Resource:
         self.down = min(self.capacity, self.down + n)
         self.failures.increment()
         self.effective_level.record(self.effective_capacity)
+        self._touch()
         if sim.log is not None:
             sim.log.append(
                 LogRecord(
@@ -412,6 +424,7 @@ class Resource:
             raise CapacityError("units must be >= 0")
         self.down = max(0, self.down - n)
         self.effective_level.record(self.effective_capacity)
+        self._touch()
         if sim.log is not None:
             sim.log.append(
                 LogRecord(sim.now, "resource.up", resource=self.name, metadata={"down": self.down})

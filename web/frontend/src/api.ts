@@ -37,6 +37,8 @@ export const api = {
   aviationExample: () =>
     request<{ schedule_csv: string; connections_csv: string; ops_yaml: string; status_csv: string; status_now: string }>("/api/aviation/example"),
   aviationForecast: (body: unknown) => post<OpsForecast>("/api/aviation/forecast", body),
+  aviationRecover: (body: unknown) => post<Job>("/api/aviation/recover", body),
+  aviationReserves: (body: unknown) => post<Job>("/api/aviation/reserves", body),
   upload: (experiment: unknown) => post<{ id: string }>("/api/results", experiment),
   exportUrl: (id: string, kind: "json" | "csv") => `/api/results/${encodeURIComponent(id)}/export.${kind}`,
   reportUrl: (id: string) => `/api/results/${encodeURIComponent(id)}/report.html`,

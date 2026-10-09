@@ -128,6 +128,10 @@ class Simulation:
         self.queues: dict[str, Queue[Any]] = {}
         self.containers: dict[str, Container] = {}
         self._watchers: list[tuple[Callable[[], bool], Signal]] = []
+        # wait_until(..., on=[...]): checked only after an event touched one of the components
+        self._dirty: set[int] = set()
+        self._event_watchers: dict[int, tuple[Callable[[], bool], Signal, list[Any]]] = {}
+        self._next_watcher = 0
         self._id_counters: dict[str, int] = {}
         self._created: dict[str, int] = {}
         self._disposed: dict[str, int] = {}
@@ -282,15 +286,25 @@ class Simulation:
                 LogRecord(event.timestamp, event.event_type, metadata=dict(event.payload))
             )
         event.execute(self)
-        if self._watchers:
+        if self._watchers or self._dirty:
             self._check_watchers()
 
     def _check_watchers(self) -> None:
         watchers = self._watchers
-        done = [w for w in watchers if w[0]()]
-        for w in done:
-            watchers.remove(w)
-            w[1].succeed(self.clock._now)
+        if watchers:
+            done = [w for w in watchers if w[0]()]
+            for w in done:
+                watchers.remove(w)
+                w[1].succeed(self.clock._now)
+        dirty = self._dirty
+        while dirty:
+            wid = dirty.pop()
+            entry = self._event_watchers.get(wid)
+            if entry is not None and entry[0]():
+                del self._event_watchers[wid]
+                for component in entry[2]:
+                    component._watchers.remove(wid)
+                entry[1].succeed(self.clock._now)
 
     def step(self) -> Event | None:
         """Execute the next event. Returns it, or ``None`` if the queue is empty."""
@@ -359,6 +373,7 @@ class Simulation:
         clock = self.clock
         executed_status = EventStatus.EXECUTED
         watchers = self._watchers
+        dirty = self._dirty
         # Same steps as _execute, inlined: this loop runs once per event.
         while executed < limit and not self._stop_requested:
             event = pop_due(horizon)
@@ -375,7 +390,7 @@ class Simulation:
                         LogRecord(event.timestamp, event.event_type, metadata=dict(event.payload))
                     )
                 event.execute(self)
-            if watchers:
+            if watchers or dirty:
                 self._check_watchers()
             executed += 1
         stopped_early = self._stop_requested or executed >= limit
@@ -524,19 +539,43 @@ class Simulation:
     def any_of(self, *waitables: Waitable | Iterable[Waitable]) -> AnyOf:
         return AnyOf(self, _flatten(waitables))
 
-    def wait_until(self, predicate: Callable[[], bool], *, name: str = "condition") -> Signal:
+    def wait_until(
+        self,
+        predicate: Callable[[], bool],
+        *,
+        name: str = "condition",
+        on: Iterable[Any] | None = None,
+    ) -> Signal:
         """A signal that triggers (with the current time) once ``predicate()`` is true.
 
         The predicate is checked now and then after every event until it
         holds, so ``yield sim.wait_until(lambda: stock.level < 20)`` works for
         any model state. Keep predicates cheap; each pending one costs a call
         per event.
+
+        With ``on=[resource, container, queue, ...]`` the predicate is only
+        re-checked after an event that changed one of those components - much
+        cheaper when many conditions are pending. The predicate must then
+        depend only on those components (and on constants).
         """
         sig = Signal(self, name)
         if predicate():
             sig.succeed(self.clock._now)
-        else:
+            return sig
+        if on is None:
             self._watchers.append((predicate, sig))
+            return sig
+        components = list(on)
+        if not components:
+            raise ValueError("on= needs at least one resource, container or queue")
+        for c in components:
+            if not hasattr(c, "_watchers"):
+                raise TypeError(f"cannot watch {c!r}: use a Resource, Container or Queue")
+        wid = self._next_watcher
+        self._next_watcher += 1
+        self._event_watchers[wid] = (predicate, sig, components)
+        for c in components:
+            c._watchers.append(wid)
         return sig
 
     # -- resources and queues ----------------------------------------------

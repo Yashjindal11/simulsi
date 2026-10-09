@@ -13,7 +13,7 @@ with a probability, so forecasts can carry weather scenarios.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
@@ -45,7 +45,13 @@ class DelayModel:
     exponential; :func:`~simulsi.aviation.fit_delay_model` fills it in.
     ``day_sigma`` makes whole days better or worse together (weather, ATC
     programmes): each simulated day draws a lognormal factor on every
-    delay chance.
+    delay chance. ``airport_days`` does the same per airport from the
+    empirical spread of good and bad days there (quantiles with mean 1;
+    key ``"*"`` for any airport). ``cancel_rate`` is the chance a departure
+    is cancelled for reasons outside the model (weather, crew, mechanical),
+    scaled up on bad days; ``cancel_days`` replaces it with the empirical
+    spread of each airport's daily cancelled share, drawn together with
+    the delay factor.
     """
 
     prob: float = 0.2
@@ -56,7 +62,30 @@ class DelayModel:
     block_scale: float = 1.0
     shape: list[float] = field(default_factory=list)
     day_sigma: float = 0.0
+    airport_days: dict[str, list[float]] = field(default_factory=dict)
+    cancel_rate: float = 0.0
+    cancel_days: dict[str, list[float]] = field(default_factory=dict)
     predictor: DelayPredictor | None = None
+
+    def airport_factors(
+        self, airports: Sequence[str], rs: RandomStream
+    ) -> tuple[dict[str, float], dict[str, float]]:
+        """How bad the day is at each airport, drawn from history: (delay factor, cancelled share).
+
+        One draw per airport sets both, so a bad delay day is also a bad
+        cancellation day.
+        """
+        factors: dict[str, float] = {}
+        cancels: dict[str, float] = {}
+        for a in sorted(airports):
+            u = rs.random()
+            q = self.airport_days.get(a) or self.airport_days.get("*")
+            if q:
+                factors[a] = _interp(q, u)
+            c = self.cancel_days.get(a) or self.cancel_days.get("*")
+            if c:
+                cancels[a] = _interp(c, u)
+        return factors, cancels
 
     def day_factor(self, rs: RandomStream) -> float:
         """How bad the whole day is: multiplies every flight's delay chance (mean 1)."""
@@ -104,6 +133,9 @@ class DelayModel:
             "block_scale": self.block_scale,
             "shape": [round(x, 4) for x in self.shape],
             "day_sigma": self.day_sigma,
+            "airport_days": {k: [round(x, 4) for x in v] for k, v in self.airport_days.items()},
+            "cancel_rate": self.cancel_rate,
+            "cancel_days": {k: [round(x, 5) for x in v] for k, v in self.cancel_days.items()},
         }
 
     @classmethod
@@ -117,6 +149,9 @@ class DelayModel:
             "block_scale",
             "shape",
             "day_sigma",
+            "airport_days",
+            "cancel_rate",
+            "cancel_days",
         }
         extra = set(data) - known
         if extra:
@@ -131,6 +166,13 @@ class DelayModel:
             block_scale=float(data.get("block_scale", 1.0)),
             shape=[float(x) for x in data.get("shape") or []],
             day_sigma=float(data.get("day_sigma", 0.0)),
+            airport_days={
+                str(k): [float(x) for x in v] for k, v in (data.get("airport_days") or {}).items()
+            },
+            cancel_rate=float(data.get("cancel_rate", 0.0)),
+            cancel_days={
+                str(k): [float(x) for x in v] for k, v in (data.get("cancel_days") or {}).items()
+            },
         )
 
 
@@ -140,6 +182,8 @@ class WeatherEvent:
 
     ``probability`` is the chance the event happens on the day (each
     replication draws it); ``capacity=0`` closes the airport to departures.
+    ``cancel`` is the share of departures in the window the airline cancels
+    in advance (as for a forecast winter storm).
     """
 
     airport: str
@@ -148,6 +192,7 @@ class WeatherEvent:
     capacity: float = 0.4
     probability: float = 1.0
     name: str = ""
+    cancel: float = 0.0
 
     def __post_init__(self) -> None:
         if self.end <= self.start:
@@ -156,6 +201,8 @@ class WeatherEvent:
             raise ConfigError("weather capacity must be in [0, 1]")
         if not 0 <= self.probability <= 1:
             raise ConfigError("weather probability must be in [0, 1]")
+        if not 0 <= self.cancel <= 1:
+            raise ConfigError("weather cancel share must be in [0, 1]")
 
     @classmethod
     def parse(cls, text: str) -> WeatherEvent:
@@ -166,10 +213,12 @@ class WeatherEvent:
                 f"weather must look like 'HUB 15:00-18:00 [capacity] [p=prob]': {text!r}"
             )
         start, _, end = parts[1].partition("-")
-        cap, prob = 0.4, 1.0
+        cap, prob, cancel = 0.4, 1.0, 0.0
         for extra in parts[2:]:
             if extra.startswith("p="):
                 prob = float(extra[2:])
+            elif extra.startswith("c="):
+                cancel = float(extra[2:])
             else:
                 cap = float(extra)
         return cls(
@@ -179,6 +228,7 @@ class WeatherEvent:
             cap,
             prob,
             f"weather {parts[0].upper()}",
+            cancel,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -228,6 +278,7 @@ class OpsConfig:
     on_time: float = 15.0
     min_turn: float = 35.0
     min_turn_by_airport: dict[str, float] = field(default_factory=dict)
+    late_turn_compression: float = 1.0
     runway_rate: dict[str, float] = field(default_factory=dict)
     weather_base_rate: float = 30.0
     gates: dict[str, int] = field(default_factory=dict)
@@ -242,11 +293,15 @@ class OpsConfig:
     swap_threshold: float = 90.0
     cancel_threshold: float = 240.0
     mct: float = 35.0
+    load_factor: float = 0.85
+    overnight_delay: float = 18 * 60.0
+    spare_ferry_minutes: float | None = None
     delay_cost_per_minute: float = 100.0
     cancel_cost: float = 20000.0
     misconnect_cost_per_pax: float = 250.0
     eu261: bool = False
     delays: DelayModel = field(default_factory=DelayModel)
+    otp_recalibration: tuple[float, float] = (0.0, 1.0)
 
     def turn(self, airport: str) -> float:
         return self.min_turn_by_airport.get(airport, self.min_turn)
@@ -317,3 +372,10 @@ def _load_yaml(path: str | Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ConfigError(f"{path}: expected a mapping of settings")
     return data
+
+
+def _interp(q: Sequence[float], u: float) -> float:
+    """The value at quantile ``u`` of equally spaced quantiles ``q``."""
+    x = u * (len(q) - 1)
+    k = int(x)
+    return q[k] + (q[min(k + 1, len(q) - 1)] - q[k]) * (x - k)

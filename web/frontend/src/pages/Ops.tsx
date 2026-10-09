@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import type { OpsForecast, GanttBar } from "../types";
+import { OpsPlanning } from "./OpsPlanning";
 
 const DAY_START = 5 * 60;
 
@@ -203,6 +204,7 @@ export function OpsView() {
         </div>
       </section>
       {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      <OpsPlanning body={() => body(false)} />
       {fc && s && (
         <>
           <div className="grid gap-3 md:grid-cols-5">

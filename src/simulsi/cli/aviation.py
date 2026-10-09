@@ -138,6 +138,44 @@ def cmd_forecast(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_watch(args: argparse.Namespace) -> int:
+    import time
+
+    from simulsi.aviation import OpsState, forecast, format_time
+
+    schedule, cfg, weather = _load(args)
+    previous: set[str] = set()
+    n = 0
+    while True:
+        state = OpsState.load(args.feed, args.now)
+        fc = forecast(
+            schedule,
+            cfg,
+            replications=args.replications,
+            seed=args.seed,
+            weather=weather,
+            state=state,
+        )
+        s = fc.summary()
+        alerts = fc.alerts()
+        keys = {f"{a.kind}:{a.flight}:{a.message}" for a in alerts}
+        new = [a for a in alerts if f"{a.kind}:{a.flight}:{a.message}" not in previous]
+        previous = keys
+        _out(
+            f"[{format_time(state.now)}] OTP {s['otp']['mean']:.1%} "
+            f"({s['otp']['p10']:.1%}-{s['otp']['p90']:.1%}), "
+            f"cancellations {s['cancelled']['mean']:.1f}, {len(alerts)} alerts, {len(new)} new"
+        )
+        for a in new[:10]:
+            _out(f"  {a}")
+        if args.out:
+            fc.to_json(args.out)
+        n += 1
+        if args.times and n >= args.times:
+            return EXIT_OK
+        time.sleep(args.every)
+
+
 def cmd_whatif(args: argparse.Namespace) -> int:
     from simulsi.aviation import compare_plans, parse_action
 
@@ -458,6 +496,19 @@ def add_parser(sub: Any) -> None:
     s.add_argument("--top", type=int, default=15)
     s.add_argument("--out", "-o", help="write per-flight forecasts (.csv or .json)")
     s.set_defaults(func=cmd_forecast)
+
+    s = asub.add_parser("watch", help="live twin: re-forecast from a status feed every few minutes")
+    common(s, state=False)
+    s.add_argument(
+        "--feed", required=True, help="status CSV/JSON file or http(s) URL, re-read each time"
+    )
+    s.add_argument("--now", help="fixed time (default: the feed's 'now', else the local clock)")
+    s.add_argument("--every", type=float, default=300.0, help="seconds between forecasts")
+    s.add_argument(
+        "--times", type=int, default=0, help="stop after N forecasts (0 = run until stopped)"
+    )
+    s.add_argument("--out", "-o", help="write the latest forecast JSON here each time")
+    s.set_defaults(func=cmd_watch, replications=100)
 
     s = asub.add_parser("whatif", help="compare controller options on the same disturbances")
     common(s)

@@ -322,16 +322,15 @@ def aviation_example() -> dict[str, Any]:
     }
 
 
-def aviation_forecast(body: Mapping[str, Any]) -> dict[str, Any]:
-    """Forecast a day from CSV text and YAML rules sent by the dashboard."""
+def _aviation_inputs(body: Mapping[str, Any], *, max_work: int = 400_000) -> dict[str, Any]:
+    """Schedule, rules, weather, live state and actions from CSV text and YAML sent by the dashboard."""
     import csv
     import io
 
     import yaml
 
-    from simulsi.aviation import OpsConfig, OpsState, Schedule, WeatherEvent, forecast, parse_action
+    from simulsi.aviation import OpsConfig, OpsState, Schedule, WeatherEvent, parse_action
     from simulsi.aviation.config import weather_from_config
-    from simulsi.aviation.forecast import jsonable
 
     def rows(key: str) -> list[dict[str, Any]]:
         text = str(body.get(key) or "")
@@ -339,7 +338,7 @@ def aviation_forecast(body: Mapping[str, Any]) -> dict[str, Any]:
 
     schedule = Schedule.from_records(rows("schedule_csv"), rows("connections_csv")).check()
     if len(schedule) > 3000:
-        raise ConfigError("the dashboard forecasts up to 3000 flights; use the CLI for more")
+        raise ConfigError("the dashboard handles up to 3000 flights; use the CLI for more")
     try:
         data = yaml.safe_load(str(body.get("ops_yaml") or "")) or {}
     except yaml.YAMLError as exc:
@@ -351,19 +350,99 @@ def aviation_forecast(body: Mapping[str, Any]) -> dict[str, Any]:
         WeatherEvent.parse(w) for w in body.get("weather") or [] if str(w).strip()
     ]
     reps = int(body.get("replications", 200))
-    if not 1 <= reps * max(1, len(schedule)) <= 400_000 or reps > 1000:
-        raise ConfigError("replications x flights must be at most 400 000 (and replications <= 1000)")
+    if not 1 <= reps * max(1, len(schedule)) <= max_work or reps > 1000:
+        raise ConfigError(
+            f"replications x flights must be at most {max_work:,} (and replications <= 1000)"
+        )
     state = None
     if body.get("now"):
         if not rows("status_csv"):
-            raise ConfigError("a start time needs a live status CSV (flight, atd, ata, etd, status)")
+            raise ConfigError(
+                "a start time needs a live status CSV (flight, atd, ata, etd, status)"
+            )
         state = OpsState.from_records(str(body["now"]), rows("status_csv"))
     actions = [parse_action(str(a)) for a in body.get("actions") or [] if str(a).strip()]
+    return {
+        "schedule": schedule,
+        "config": cfg,
+        "weather": weather,
+        "state": state,
+        "actions": actions,
+        "replications": reps,
+        "seed": int(body.get("seed", 0)),
+    }
+
+
+def aviation_forecast(body: Mapping[str, Any]) -> dict[str, Any]:
+    """Forecast a day from CSV text and YAML rules sent by the dashboard."""
+    from simulsi.aviation import forecast
+    from simulsi.aviation.forecast import jsonable
+
+    x = _aviation_inputs(body)
     fc = forecast(
-        schedule, cfg, replications=reps, seed=int(body.get("seed", 0)), weather=weather, state=state, actions=actions
+        x["schedule"],
+        x["config"],
+        replications=x["replications"],
+        seed=x["seed"],
+        weather=x["weather"],
+        state=x["state"],
+        actions=x["actions"],
     )
     out: dict[str, Any] = jsonable(fc.to_dict())
     return out
+
+
+def aviation_task(kind: str, body: Mapping[str, Any]) -> Callable[[], dict[str, Any]]:
+    """A background job for the dashboard: ``recover`` (action search) or ``reserves``."""
+    from simulsi.aviation import plan_reserves, recover
+    from simulsi.aviation.forecast import jsonable
+
+    x = _aviation_inputs(body, max_work=60_000)
+    if kind == "recover":
+        max_actions = int(body.get("max_actions", 3))
+        if not 1 <= max_actions <= 5:
+            raise ConfigError("max_actions must be between 1 and 5")
+
+        def run_recover() -> dict[str, Any]:
+            res = recover(
+                x["schedule"],
+                x["config"],
+                state=x["state"],
+                weather=x["weather"],
+                max_actions=max_actions,
+                replications=x["replications"],
+                seed=x["seed"],
+            )
+            out: dict[str, Any] = jsonable(res.to_dict())
+            return out
+
+        return run_recover
+    if kind == "reserves":
+
+        def counts(key: str, default: str) -> list[int]:
+            values = [int(v) for v in str(body.get(key) or default).split(",") if v.strip()]
+            if not values or len(values) > 6 or min(values) < 0 or max(values) > 20:
+                raise ConfigError(f"{key}: up to 6 counts between 0 and 20")
+            return values
+
+        spares, standby = counts("spares", "0,1,2"), counts("standby", "0,1,2")
+
+        def run_reserves() -> dict[str, Any]:
+            plan = plan_reserves(
+                x["schedule"],
+                x["config"],
+                airport=str(body.get("airport") or "") or None,
+                spares=spares,
+                standby_crews=standby,
+                weather=x["weather"],
+                replications=x["replications"],
+                seed=x["seed"],
+            )
+            out: dict[str, Any] = jsonable(plan.to_dict())
+            return out
+
+        return run_reserves
+    raise ConfigError(f"unknown aviation task {kind!r}")
 
 
 def make_handler(state: DashboardState, allowed_hosts: set[str]) -> type[BaseHTTPRequestHandler]:
@@ -512,6 +591,10 @@ def make_handler(state: DashboardState, allowed_hosts: set[str]) -> type[BaseHTT
                                      None if duration is None else float(duration)))
             elif path == "/api/aviation/forecast":
                 self._json(aviation_forecast(body))
+            elif path in ("/api/aviation/recover", "/api/aviation/reserves"):
+                kind = path.rsplit("/", 1)[1]
+                jid = state.start_task(kind, aviation_task(kind, body))
+                self._json(state.job(jid), HTTPStatus.ACCEPTED)
             elif path == "/api/results":
                 res = ExperimentResult.from_dict(body)
                 self._json({"id": state.add_result(res, "uploaded in browser")}, HTTPStatus.CREATED)

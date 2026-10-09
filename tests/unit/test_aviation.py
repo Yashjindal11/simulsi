@@ -292,3 +292,72 @@ def test_network_model_plugs_into_simulsi() -> None:
     assert model.evaluate({"delay_scale": 0.0}, metric="otp", replications=2) >= model.evaluate(
         {"delay_scale": 2.0}, metric="otp", replications=2
     )
+
+
+def test_rebooking_reaccommodates_on_later_flights() -> None:
+    s = Schedule(
+        [
+            Flight("IN", "T1", "AAA", "HUB", 360, 420, pax=100),
+            Flight("OUT1", "T2", "HUB", "BBB", 450, 510, pax=150, seats=180),
+            Flight("OUT2", "T3", "HUB", "BBB", 600, 660, pax=150, seats=180),
+        ],
+        [Connection("IN", "OUT1", 40)],
+    )
+    state = OpsState(0.0, {"IN": FlightStatus(etd=420.0)})
+    day = simulate_day(s, calm(mct=35), seed=1, state=state)
+    assert day.misconnected == {("IN", "OUT1"): 40}
+    # 30 free seats on OUT2: 30 rebooked 150 minutes late, 10 stranded overnight
+    assert day.metrics["rebooked_pax"] == 30 and day.metrics["stranded_pax"] == 10
+    assert day.metrics["disrupted_pax_delay_hours"] == pytest.approx((30 * 150 + 10 * 18 * 60) / 60)
+
+
+def test_spare_can_be_ferried_from_another_airport() -> None:
+    s = Schedule(
+        [
+            Flight("A1", "T1", "AAA", "HUB", 360, 600),
+            Flight("A2", "T1", "HUB", "BBB", 660, 720),
+        ]
+    )
+    state = OpsState(0.0, {"A1": FlightStatus(etd=510.0)})
+    local_only = simulate_day(s, calm(spares={"CCC": 1}), seed=1, state=state)
+    ferried = simulate_day(s, calm(spares={"CCC": 1}, spare_ferry_minutes=45), seed=1, state=state)
+    assert not local_only.flights["A2"].spare
+    # decided an hour before departure: 20 min to get ready plus a 45 min ferry
+    assert ferried.flights["A2"].spare and ferried.flights["A2"].dep == pytest.approx(665)
+
+
+def test_storm_cancellations_and_cancel_days() -> None:
+    s = two_legs()
+    storm = WeatherEvent("HUB", 300, 500, 1.0, 1.0, "storm", cancel=1.0)
+    day = simulate_day(s, calm(), seed=1, weather=[storm])
+    assert day.flights["A1"].cancelled and day.flights["A1"].reason == "weather"
+    assert day.metrics["cancelled.weather"] == 2
+    assert WeatherEvent.parse("HUB 06:00-12:00 0.5 c=0.3").cancel == 0.3
+    sure = OpsConfig(delays=DelayModel(prob=0.0, block_cv=0.0, cancel_days={"*": [1.0, 1.0]}))
+    assert simulate_day(s, sure, seed=1).metrics["cancelled.other"] == 2
+    back = DelayModel.from_dict(sure.delays.to_dict())
+    assert back.cancel_days == {"*": [1.0, 1.0]}
+
+
+def test_late_turn_compression_speeds_up_late_turns() -> None:
+    state = OpsState(0.0, {"A1": FlightStatus(etd=450.0)})
+    slow = simulate_day(two_legs(gap=30), calm(min_turn=60), seed=3, state=state)
+    fast = simulate_day(
+        two_legs(gap=30), calm(min_turn=60, late_turn_compression=0.0), seed=3, state=state
+    )
+    assert fast.flights["A2"].dep == pytest.approx(450 + 60 + 54)
+    assert fast.flights["A2"].dep <= slow.flights["A2"].dep
+
+
+def test_live_feed_loader(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    import json
+
+    feed = tmp_path / "feed.json"
+    feed.write_text(json.dumps({"now": "08:00", "flights": [{"flight": "A1", "atd": "06:05"}]}))
+    st = OpsState.load(str(feed))
+    assert st.now == 480 and st.flights["A1"].atd == 365
+    csv_feed = tmp_path / "feed.csv"
+    csv_feed.write_text("flight,atd,ata,etd,status\nA1,06:05,07:02,,\n")
+    assert OpsState.load(str(csv_feed), "09:00").flights["A1"].ata == 422
+    with pytest.raises(ConfigError, match="scheme"):
+        OpsState.load("ftp://example.com/feed.csv", "09:00")

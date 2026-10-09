@@ -11,6 +11,8 @@ alternatives can be simulated side by side.
 from __future__ import annotations
 
 import csv
+import io
+import json
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -92,6 +94,10 @@ class OpsState:
                 rows = list(csv.DictReader(fh))
         except OSError as exc:
             raise ConfigError(f"cannot read {path}: {exc}") from exc
+        return cls._from_rows(rows, now)
+
+    @classmethod
+    def _from_rows(cls, rows: Iterable[Mapping[str, Any]], now: float | str) -> OpsState:
         aog = {}
         kept = []
         for r in rows:
@@ -101,6 +107,33 @@ class OpsState:
             else:
                 kept.append(r)
         return cls.from_records(now, kept, aog)
+
+    @classmethod
+    def load(cls, source: str, now: float | str | None = None) -> OpsState:
+        """Live status from a CSV file, or from an http(s) URL serving CSV or JSON.
+
+        JSON may be a list of status rows or ``{"now": "13:05", "flights": [...]}``.
+        ``now`` defaults to the feed's ``now``, else the local clock.
+        """
+        text, kind = _fetch(source)
+        rows: list[Mapping[str, Any]]
+        feed_now: Any = None
+        if kind == "json":
+            try:
+                data = json.loads(text)
+            except ValueError as exc:
+                raise ConfigError(f"{source}: not valid JSON ({exc})") from exc
+            if isinstance(data, dict):
+                feed_now = data.get("now")
+                data = data.get("flights", [])
+            if not isinstance(data, list) or not all(isinstance(r, dict) for r in data):
+                raise ConfigError(f"{source}: expected a list of status objects")
+            rows = data
+        else:
+            rows = list(csv.DictReader(io.StringIO(text)))
+        if now is None:
+            now = feed_now if feed_now is not None else _clock_now()
+        return cls._from_rows(rows, now)
 
     def to_csv(self, path: str | Path | None = None) -> str:
         """The flight statuses as CSV (flight, atd, ata, etd, status), readable by :meth:`from_csv`."""
@@ -221,3 +254,43 @@ def parse_action(text: str) -> Action:
     raise ConfigError(
         f"cannot parse action {text!r}; use 'cancel F1 F2', 'retime F1 30' or 'swap T1 T2 12:00'"
     )
+
+
+MAX_FEED_BYTES = 20_000_000
+
+
+def _clock_now() -> float:
+    import time
+
+    lt = time.localtime()
+    return lt.tm_hour * 60 + lt.tm_min + lt.tm_sec / 60
+
+
+def _fetch(source: str) -> tuple[str, str]:
+    """(text, "csv" or "json") from a local path or an http(s) URL."""
+    from urllib.parse import urlparse
+
+    scheme = urlparse(source).scheme.lower()
+    if scheme in {"http", "https"}:
+        from urllib.request import Request, urlopen
+
+        req = Request(source, headers={"Accept": "text/csv, application/json"})  # noqa: S310
+        try:
+            with urlopen(req, timeout=30) as resp:  # noqa: S310 - scheme checked above
+                body = resp.read(MAX_FEED_BYTES + 1)
+                ctype = resp.headers.get("Content-Type", "")
+        except OSError as exc:
+            raise ConfigError(f"cannot fetch {source}: {exc}") from exc
+        if len(body) > MAX_FEED_BYTES:
+            raise ConfigError(f"{source}: feed larger than {MAX_FEED_BYTES} bytes")
+        text = body.decode("utf-8", errors="replace")
+        kind = "json" if "json" in ctype or text.lstrip().startswith(("[", "{")) else "csv"
+        return text, kind
+    if scheme not in {"", "file"} and len(scheme) > 1:
+        raise ConfigError(f"unsupported feed scheme {scheme!r}; use a file or an http(s) URL")
+    path = Path(urlparse(source).path if scheme == "file" else source)
+    try:
+        text = path.read_text()
+    except OSError as exc:
+        raise ConfigError(f"cannot read {source}: {exc}") from exc
+    return text, "json" if path.suffix.lower() == ".json" else "csv"

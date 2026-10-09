@@ -14,7 +14,9 @@ score, delay-quantile coverage and the error of the predicted OTP.
 from __future__ import annotations
 
 import csv
+import io
 import math
+import zipfile
 from collections import Counter, deque
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -49,7 +51,15 @@ _HIST_ALIASES = {
     "elapsed": ("crs_elapsed_time", "crselapsedtime", "sched_block"),
     "carrier": ("op_unique_carrier", "op_carrier", "reporting_airline", "carrier", "airline"),
     "number": ("op_carrier_fl_num", "flight_number_reporting_airline", "flight_number"),
+    "carrier_delay": ("carrier_delay", "carrierdelay"),
+    "weather_delay": ("weather_delay", "weatherdelay"),
+    "nas_delay": ("nas_delay", "nasdelay"),
+    "security_delay": ("security_delay", "securitydelay"),
+    "late_aircraft_delay": ("late_aircraft_delay", "lateaircraftdelay"),
+    "cancellation_code": ("cancellation_code", "cancellationcode"),
 }
+CAUSES = ("carrier", "weather", "nas", "security", "late_aircraft")
+CANCEL_CODES = {"A": "carrier", "B": "weather", "C": "nas", "D": "security"}
 _TRUE = {"1", "1.0", "1.00", "true", "yes", "y"}
 
 
@@ -60,6 +70,8 @@ class ActualFlight:
     atd: float
     ata: float
     cancelled: bool
+    causes: dict[str, float] = field(default_factory=dict)
+    cancel_reason: str = ""
 
     @property
     def dep_delay(self) -> float:
@@ -124,6 +136,21 @@ class History:
                 flights[f.id] = FlightStatus(atd=a.atd, ata=a.ata if a.ata <= now else None)
         return OpsState(now, flights)
 
+    def causes(self) -> dict[str, Any]:
+        """Where the delay minutes and cancellations come from (BTS cause columns)."""
+        minutes = dict.fromkeys(CAUSES, 0.0)
+        reasons: Counter[str] = Counter()
+        for a in self.flights:
+            for c, v in a.causes.items():
+                minutes[c] += v
+            if a.cancelled:
+                reasons[a.cancel_reason or "unknown"] += 1
+        total = sum(minutes.values())
+        return {
+            "delay_share": {c: (v / total if total else 0.0) for c, v in minutes.items()},
+            "cancellations": dict(reasons),
+        }
+
     def summary(self) -> dict[str, float]:
         flown = [a for a in self.flights if not a.cancelled]
         return {
@@ -176,7 +203,8 @@ class History:
         for p in parsed:
             if p is None:
                 continue
-            date, fid, tail, o, d, std, sta, elapsed, dep_delay, arr_delay, cancelled, pax = p
+            date, fid, tail, o, d, std, sta, elapsed, dep_delay, arr_delay, cancelled, pax = p[:12]
+            causes, cancel_reason = p[12], p[13]
             counter[(date, fid)] = counter.get((date, fid), 0) + 1
             if counter[(date, fid)] > 1:
                 fid = f"{fid}.{counter[(date, fid)]}"
@@ -190,7 +218,7 @@ class History:
             f = Flight(fid, tail or f"?{fid}", o, d, std, sta, pax)
             atd = math.nan if cancelled else std + float(dep_delay or 0.0)
             ata = math.nan if cancelled else sta + float(arr_delay or 0.0)
-            out.append(ActualFlight(date, f, atd, ata, cancelled))
+            out.append(ActualFlight(date, f, atd, ata, cancelled, causes, cancel_reason))
         ref = ""
         if offsets:
             ref = clock.upper() if clock else max(offsets, key=lambda a: (offsets[a] == 0, a))
@@ -202,23 +230,43 @@ class History:
     ) -> History:
         """A history CSV, including US BTS on-time files (both the download-form names such as
         ``FL_DATE, TAIL_NUM, CRS_DEP_TIME`` and the monthly PREZIP names such as
-        ``FlightDate, Tail_Number, CRSDepTime``). ``carrier`` filters while reading."""
+        ``FlightDate, Tail_Number, CRSDepTime``). ``carrier`` filters while reading. A ``.zip``
+        (as downloaded from BTS) is read directly."""
         try:
+            if str(path).lower().endswith(".zip"):
+                with zipfile.ZipFile(path) as zf:
+                    name = next((n for n in zf.namelist() if n.lower().endswith(".csv")), None)
+                    if name is None:
+                        raise ConfigError(f"{path}: no CSV inside the zip")
+                    with zf.open(name) as raw:
+                        return cls._from_handle(io.TextIOWrapper(raw, newline=""), carrier, clock)
             with Path(path).open(newline="") as fh:
-                reader = csv.DictReader(fh)
-                if carrier:
-                    names = {str(n).strip().lower(): n for n in reader.fieldnames or []}
-                    key = next((names[n] for n in _HIST_ALIASES["carrier"] if n in names), None)
-                    rows: Iterable[Mapping[str, Any]] = (
-                        r
-                        for r in reader
-                        if key is None or str(r[key]).strip().upper() == carrier.upper()
-                    )
-                else:
-                    rows = reader
-                return cls.from_records(list(rows), carrier=carrier, clock=clock)
-        except OSError as exc:
+                return cls._from_handle(fh, carrier, clock)
+        except (OSError, zipfile.BadZipFile) as exc:
             raise ConfigError(f"cannot read {path}: {exc}") from exc
+
+    @classmethod
+    def _from_handle(cls, fh: Any, carrier: str | None, clock: str | None) -> History:
+        reader = csv.DictReader(fh)
+        if carrier:
+            names = {str(n).strip().lower(): n for n in reader.fieldnames or []}
+            key = next((names[n] for n in _HIST_ALIASES["carrier"] if n in names), None)
+            rows: Iterable[Mapping[str, Any]] = (
+                r for r in reader if key is None or str(r[key]).strip().upper() == carrier.upper()
+            )
+        else:
+            rows = reader
+        return cls.from_records(list(rows), carrier=carrier, clock=clock)
+
+    @classmethod
+    def concat(cls, parts: Sequence[History]) -> History:
+        """Several histories (e.g. months) as one; time-zone offsets from the first that has them."""
+        ref = next((p for p in parts if p.tz_offsets), None)
+        offsets = dict(ref.tz_offsets) if ref else {}
+        for p in parts:
+            for a, v in p.tz_offsets.items():
+                offsets.setdefault(a, v)
+        return cls([a for p in parts for a in p.flights], offsets, ref.clock if ref else "")
 
     def to_csv(self, path: str | Path) -> None:
         from simulsi.aviation.schedule import format_time
@@ -316,7 +364,24 @@ def _parse_row(r: Mapping[str, Any], col: Mapping[str, str]) -> tuple[Any, ...] 
             )
     pax = int(float(text("pax"))) if text("pax") else 150
     o, d = text("origin").upper(), text("dest").upper()
-    return (date, fid, text("tail"), o, d, std, sta, elapsed, dep_delay, arr_delay, cancelled, pax)
+    causes = {c: float(text(f"{c}_delay")) for c in CAUSES if text(f"{c}_delay")}
+    reason = CANCEL_CODES.get(text("cancellation_code").upper(), "") if cancelled else ""
+    return (
+        date,
+        fid,
+        text("tail"),
+        o,
+        d,
+        std,
+        sta,
+        elapsed,
+        dep_delay,
+        arr_delay,
+        cancelled,
+        pax,
+        causes,
+        reason,
+    )
 
 
 def _tz_offsets(parsed: Sequence[tuple[Any, ...] | None], clock: str | None) -> dict[str, float]:
@@ -367,6 +432,7 @@ def fit_delay_model(
     min_samples: int = 30,
     threshold: float = 1.0,
     empirical: bool = True,
+    min_days: int = 10,
 ) -> DelayModel:
     """Estimate primary-delay rates and block-time variability from history.
 
@@ -382,6 +448,7 @@ def fit_delay_model(
     if by not in {"origin", "origin_hour"}:
         raise ConfigError("by must be 'origin' or 'origin_hour'")
     prim: list[tuple[Flight, float]] = []
+    day_primary: dict[tuple[str, str], list[float]] = {}
     ratios: dict[str, list[float]] = {}
     by_day_tail: dict[tuple[str, str], list[ActualFlight]] = {}
     for a in history.flights:
@@ -395,6 +462,7 @@ def fit_delay_model(
             f = a.flight
             knock_on = max(0.0, ready - f.std) if not f.tail.startswith("?") else 0.0
             prim.append((f, max(0.0, a.dep_delay - knock_on)))
+            day_primary.setdefault((a.date, f.origin), []).append(prim[-1][1])
             if f.block > 0 and a.ata > a.atd:
                 ratios.setdefault(f"{f.origin}-{f.dest}", []).append((a.ata - a.atd) / f.block)
             ready = a.ata + min_turn
@@ -437,7 +505,93 @@ def fit_delay_model(
         block_bias=bias,
         block_scale=round(scale, 4),
         shape=shape,
+        airport_days=_airport_days(day_primary, min_days),
+        cancel_days=_cancel_days(history, min_days),
+        cancel_rate=round(
+            sum(a.cancelled for a in history.flights) / max(1, len(history.flights)) / 2, 5
+        ),
     )
+
+
+def _quantiles_mean_one(values: Sequence[float], n: int = 21) -> list[float]:
+    q = np.quantile(np.asarray(values, dtype=float), np.linspace(0, 1, n))
+    mean = (q.sum() - (q[0] + q[-1]) / 2) / (n - 1)  # mean of a draw interpolated between quantiles
+    return [round(float(x / mean), 4) for x in q] if mean > 0 else []
+
+
+def _airport_days(
+    day_primary: Mapping[tuple[str, str], list[float]], min_days: int
+) -> dict[str, list[float]]:
+    """Spread of good and bad days per airport: daily mean primary delay over the airport's mean."""
+    by_airport: dict[str, list[float]] = {}
+    for (_, airport), values in day_primary.items():
+        if len(values) >= 3:
+            by_airport.setdefault(airport, []).append(float(np.mean(values)))
+    out: dict[str, list[float]] = {}
+    pooled: list[float] = []
+    for airport, means in sorted(by_airport.items()):
+        overall = float(np.mean(means))
+        if overall <= 0 or len(means) < 3:
+            continue
+        ratios = [m / overall for m in means]
+        pooled += ratios
+        if len(means) >= min_days:
+            q = _quantiles_mean_one(ratios)
+            if q:
+                out[airport] = q
+    if len(pooled) >= min_days:
+        q = _quantiles_mean_one(pooled)
+        if q:
+            out["*"] = q
+    return out
+
+
+def _cancel_days(history: History, min_days: int) -> dict[str, list[float]]:
+    """Spread of each airport's daily share of cancelled departures (plus ``"*"`` pooled)."""
+    counts: dict[tuple[str, str], list[int]] = {}
+    for a in history.flights:
+        c = counts.setdefault((a.date, a.flight.origin), [0, 0])
+        c[0] += int(a.cancelled)
+        c[1] += 1
+    by_airport: dict[str, list[float]] = {}
+    for (_, airport), (cancelled, total) in counts.items():
+        if total >= 3:
+            by_airport.setdefault(airport, []).append(cancelled / total)
+    out: dict[str, list[float]] = {}
+    pooled: list[float] = []
+    for airport, shares in sorted(by_airport.items()):
+        pooled += shares
+        if len(shares) >= min_days and max(shares) > 0:
+            out[airport] = [round(float(x), 5) for x in np.quantile(shares, np.linspace(0, 1, 21))]
+    if len(pooled) >= min_days and max(pooled) > 0:
+        out["*"] = [round(float(x), 5) for x in np.quantile(pooled, np.linspace(0, 1, 21))]
+    return out
+
+
+def fit_late_turns(history: History, turns: Mapping[str, float], default: float = 35.0) -> float:
+    """How much ground staff speed up a late aircraft's turn, as ``OpsConfig.late_turn_compression``.
+
+    Compares the actual ground time of turns where a late inbound held up the
+    next departure with the fitted minimum turn: 0 means late turns always
+    hit 0.9 x the minimum, 1 means they are no faster than usual.
+    """
+    ratios = []
+    by_day_tail: dict[tuple[str, str], list[ActualFlight]] = {}
+    for a in history.flights:
+        if not a.cancelled and not a.flight.tail.startswith("?"):
+            by_day_tail.setdefault((a.date, a.flight.tail), []).append(a)
+    for legs in by_day_tail.values():
+        legs.sort(key=lambda a: a.flight.std)
+        for prev, nxt in pairwise(legs):
+            if prev.flight.dest != nxt.flight.origin:
+                continue
+            m = turns.get(nxt.flight.origin, default)
+            if nxt.dep_delay > 5 and prev.ata + m > nxt.flight.std:  # the inbound made it late
+                ratios.append((nxt.atd - prev.ata) / m)
+    if len(ratios) < 20:
+        return 1.0
+    # the model's turn factor is triangular(0.9, 1, 1.4), mean 1.1; compressed mean 0.9 + 0.2 c
+    return round(min(1.0, max(0.0, (float(np.median(ratios)) - 0.9) / 0.2)), 3)
 
 
 def fit_turn_times(
@@ -520,7 +674,94 @@ def calibrate(
     model.table = {k: (round(p, 4), round(m, 2)) for k, (p, m) in model.table.items()}
     if day_effect:
         model.day_sigma = _fit_day_sigma(history, cfg, model, schedules, replications, seed, late)
+    model.cancel_rate = _fit_cancel_rate(history, cfg, model, schedules, replications, seed)
     return model
+
+
+def _model_cancel_share(
+    cfg: OpsConfig, model: DelayModel, schedules: Sequence[Schedule], reps: int, seed: int
+) -> float:
+    trial = cfg.replace(delays=model)
+    made, total = 0, 0
+    for k, sched in enumerate(schedules):
+        for r in range(reps):
+            day = simulate_day(sched, trial, seed=derive_seed(seed, f"cancel{k}", r))
+            made += int(day.metrics["cancelled"])
+            total += len(sched)
+    return made / max(1, total)
+
+
+def _fit_cancel_rate(
+    history: History,
+    cfg: OpsConfig,
+    model: DelayModel,
+    schedules: Sequence[Schedule],
+    reps: int,
+    seed: int,
+) -> float:
+    """Extra cancellations the simulation does not make by itself (weather, crew, mechanical)."""
+    observed = sum(a.cancelled for a in history.flights) / max(1, len(history.flights))
+    own = _model_cancel_share(
+        cfg, replace(model, cancel_rate=0.0, cancel_days={}), schedules, reps, seed
+    )
+    residual = max(0.0, observed - own)
+    if model.cancel_days and observed > 0:
+        # keep the shape of good and bad days, but only for what the simulation does not cancel itself
+        scale = residual / observed
+        model.cancel_days = {
+            k: [round(x * scale, 5) for x in v] for k, v in model.cancel_days.items()
+        }
+    # each cancellation decision usually takes out a round trip
+    return round(residual / 2, 5)
+
+
+def fit_recalibration(
+    history: History,
+    config: OpsConfig,
+    *,
+    dates: Sequence[str] | None = None,
+    replications: int = 30,
+    seed: int = 0,
+) -> tuple[float, float]:
+    """Platt scaling of on-time probabilities: ``logit(p') = a + b logit(p)``, fitted on past days.
+
+    Simulated probabilities can be systematically too sure (or not sure
+    enough) - for example when real controllers recover late aircraft in
+    ways the model does not know. Fit on training days, then set
+    ``OpsConfig.otp_recalibration`` so forecasts report corrected chances.
+    """
+    xs: list[float] = []
+    ys: list[float] = []
+    plain = config.replace(otp_recalibration=(0.0, 1.0))
+    for date in dates or history.dates:
+        schedule = history.schedule(date)
+        if not schedule.flights:
+            continue
+        fc = forecast(schedule, plain, replications=replications, seed=seed)
+        for act in history.day(date):
+            if not act.cancelled and act.flight.id in fc.flights:
+                xs.append(_logit(fc.flights[act.flight.id].p_on_time, replications))
+                ys.append(float(act.arr_delay <= config.on_time))
+    if len(xs) < 50:
+        return (0.0, 1.0)
+    x, y = np.array(xs), np.array(ys)
+    a, b = 0.0, 1.0
+    for _ in range(50):  # Newton steps for logistic regression
+        z = a + b * x
+        p = 1 / (1 + np.exp(-z))
+        w = p * (1 - p) + 1e-9
+        g = np.array([np.sum(y - p), np.sum((y - p) * x)])
+        h = np.array([[np.sum(w), np.sum(w * x)], [np.sum(w * x), np.sum(w * x * x)]])
+        step = np.linalg.solve(h, g)
+        a, b = a + float(step[0]), b + float(step[1])
+        if np.max(np.abs(step)) < 1e-8:
+            break
+    return (round(a, 4), round(b, 4))
+
+
+def _logit(p: float, n: int) -> float:
+    q = min(max(p, 0.5 / n), 1 - 0.5 / n)
+    return math.log(q / (1 - q))
 
 
 def _late_share_spread(

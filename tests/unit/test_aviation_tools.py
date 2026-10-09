@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -390,3 +391,74 @@ def test_cli_history_and_bts_options(tmp_path: Path, capsys: pytest.CaptureFixtu
         )
         == 0
     )
+
+
+def test_recalibration_and_bts_causes(tmp_path: Path, schedule: Schedule) -> None:
+    from simulsi.aviation import fit_recalibration
+
+    history = History.simulated(schedule, HUB, days=4, seed=5)
+    a, b = fit_recalibration(history, HUB, replications=10)
+    assert math.isfinite(a) and b > 0
+    sharper = HUB.replace(otp_recalibration=(0.0, 3.0))
+    fc0 = forecast(schedule, HUB, replications=20)
+    fc1 = forecast(schedule, sharper, replications=20)
+    f = next(x for x in fc0.flights if 0.2 < fc0.flights[x].p_on_time < 0.8)
+    p0, p1 = fc0.flights[f].p_on_time, fc1.flights[f].p_on_time
+    assert (p1 - 0.5) * (p0 - 0.5) > 0 and abs(p1 - 0.5) > abs(p0 - 0.5)
+    path = tmp_path / "c.csv"
+    path.write_text(
+        "FlightDate,Reporting_Airline,Flight_Number_Reporting_Airline,Tail_Number,Origin,Dest,CRSDepTime,DepDelay,CRSArrTime,ArrDelay,Cancelled,CancellationCode,CarrierDelay,WeatherDelay,NASDelay,SecurityDelay,LateAircraftDelay\n"
+        "2026-01-05,B6,1,N1,JFK,BOS,0700,30,0815,25,0,,10,0,15,0,0\n"
+        "2026-01-05,B6,2,N1,BOS,JFK,0900,,1015,,1,B,,,,,\n"
+    )
+    h = History.from_csv(path)
+    c = h.causes()
+    assert c["delay_share"]["nas"] == pytest.approx(0.6) and c["cancellations"] == {"weather": 1}
+    zpath = tmp_path / "c.zip"
+    import zipfile
+
+    with zipfile.ZipFile(zpath, "w") as zf:
+        zf.write(path, "inner.csv")
+    assert len(History.from_csv(zpath).flights) == 2
+    both = History.concat([h, History.from_csv(zpath)])
+    assert len(both.flights) == 4
+
+
+def test_dashboard_decision_jobs() -> None:
+    from simulsi.web.server import aviation_example, aviation_task
+
+    ex = aviation_example()
+    out = aviation_task("recover", {**ex, "replications": 5, "max_actions": 1})()
+    assert "steps" in out and out["steps"][0]["plan"] == "as planned"
+    res = aviation_task("reserves", {**ex, "replications": 5, "spares": "0,1", "standby": "0"})()
+    assert len(res["rows"]) == 2 and res["airport"] == "HUB"
+    with pytest.raises(ConfigError):
+        aviation_task("reserves", {**ex, "replications": 5, "spares": "0,99"})
+    with pytest.raises(ConfigError):
+        aviation_task("nonsense", {**ex, "replications": 5})
+
+
+def test_cli_watch(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    d = tmp_path / "ex"
+    assert main(["aviation", "example", str(d), "--days", "2"]) == 0
+    capsys.readouterr()
+    args = ["aviation", "watch", str(d / "schedule.csv"), "--ops", str(d / "ops.yaml")]
+    assert (
+        main(
+            [
+                *args,
+                "--feed",
+                str(d / "status_1200.csv"),
+                "--now",
+                "12:00",
+                "--times",
+                "1",
+                "-r",
+                "5",
+                "-o",
+                str(d / "live.json"),
+            ]
+        )
+        == 0
+    )
+    assert "[12:00] OTP" in capsys.readouterr().out and (d / "live.json").exists()

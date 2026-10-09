@@ -179,3 +179,46 @@ def test_blocked_processes_produce_warning() -> None:
     sim.process(stuck(sim), name="stuck")
     result = sim.run(until=10)
     assert any("blocked" in w and "stuck" in w for w in result.warnings)
+
+
+def test_wait_until_on_components_is_event_driven() -> None:
+    sim = Simulation(seed=1)
+    tank = sim.container("tank", 100, init=50)
+    desk = sim.resource("desk", 1)
+    line = sim.queue("line")
+    seen: dict[str, float] = {}
+
+    def watch(name: str, pred: Any, on: list[Any]) -> Any:
+        seen[name] = yield sim.wait_until(pred, on=on)
+
+    sim.process(watch("low", lambda: tank.level < 20, [tank]))
+    sim.process(watch("busy", lambda: desk.in_use == 1, [desk]))
+    sim.process(watch("three", lambda: len(line) >= 3, [line]))
+    calls = {"n": 0}
+
+    def counted() -> bool:
+        calls["n"] += 1
+        return False
+
+    sim.process(watch("never", counted, [tank]))
+
+    def drive() -> Any:
+        yield 1.0
+        yield tank.get(40)  # level 10
+        yield 1.0
+        req = yield sim.request(desk)
+        for _ in range(3):
+            yield 1.0
+            yield line.put("x")
+        sim.release(req)
+        for _ in range(50):
+            yield 1.0  # many events that do not touch the tank
+
+    sim.process(drive())
+    sim.run()
+    assert seen == {"low": 1.0, "busy": 2.0, "three": 5.0}
+    assert calls["n"] <= 3  # checked at creation and after the tank changed, not every event
+    with pytest.raises(TypeError):
+        sim.wait_until(lambda: False, on=[object()])
+    with pytest.raises(ValueError):
+        sim.wait_until(lambda: False, on=[])

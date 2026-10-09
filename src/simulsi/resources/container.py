@@ -65,6 +65,7 @@ class Container:
         self._getters: deque[ContainerGet] = deque()
         self._putters: deque[ContainerPut] = deque()
         self.sim: Simulation | None = None
+        self._watchers: list[int] = []
         if sim is not None:
             sim.add_container(self)
 
@@ -90,6 +91,11 @@ class Container:
                 f"container {self.name!r} is not attached; use sim.add_container()"
             )
         return self.sim
+
+    def _touch(self) -> None:
+        """Mark conditions waiting on this component (``wait_until(..., on=[...])``) for a re-check."""
+        if self._watchers and self.sim is not None:
+            self.sim._dirty.update(self._watchers)
 
     @staticmethod
     def _check_amount(amount: float) -> float:
@@ -153,6 +159,7 @@ class Container:
                 self.get_waits.observe(sim.now - greq.requested_at)
                 greq.succeed(greq.amount)
                 progress = True
+        self._touch()
 
     def _change(self, sim: Simulation, delta: float, kind: str) -> None:
         old = self.level

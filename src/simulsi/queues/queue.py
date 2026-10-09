@@ -81,6 +81,7 @@ class Queue(Generic[T]):
         self._getters: deque[Get] = deque()
         self._putters: deque[Put] = deque()
         self.sim: Simulation | None = None
+        self._watchers: list[int] = []
         if sim is not None:
             sim.add_queue(self)
 
@@ -103,6 +104,11 @@ class Queue(Generic[T]):
             raise ResourceUsageError(f"queue {self.name!r} is not attached; use sim.add_queue()")
         return self.sim
 
+    def _touch(self) -> None:
+        """Mark conditions waiting on this component (``wait_until(..., on=[...])``) for a re-check."""
+        if self._watchers and self.sim is not None:
+            self.sim._dirty.update(self._watchers)
+
     def __len__(self) -> int:
         return len(self._buffer)
 
@@ -122,6 +128,7 @@ class Queue(Generic[T]):
         if self._putters or self.is_full:
             self.blocked_puts.increment()
             self._putters.append(req)
+            self._touch()
         else:
             self._accept(req)
         return req
@@ -138,6 +145,7 @@ class Queue(Generic[T]):
             self._admit_putters()
         else:
             self._getters.append(req)
+            self._touch()
         return req
 
     def try_get(self, filter: Callable[[T], bool] | None = None) -> T | None:
@@ -165,6 +173,7 @@ class Queue(Generic[T]):
                 self._buffer.remove(slot)
                 self.removed.increment()
                 self.length.record(len(self._buffer))
+                self._touch()
                 if sim.log is not None:
                     sim.log.append(LogRecord(sim.now, "queue.remove", resource=self.name))
                 self._admit_putters()
@@ -191,6 +200,7 @@ class Queue(Generic[T]):
                 LogRecord(sim.now, "queue.put", entity=_item_id(req.item), resource=self.name)
             )
         req.succeed(None)
+        self._touch()
         getter = next((g for g in self._getters if g.accepts(slot.item)), None)
         if getter is not None:
             # Hand over directly: the item never sits in the buffer.
@@ -210,6 +220,7 @@ class Queue(Generic[T]):
         sim = self._require_sim()
         self._buffer.remove(slot)
         self.length.record(len(self._buffer))
+        self._touch()
         self.wait_times.observe(sim.now - slot.put_at)
         self.gets.increment()
         if sim.log is not None:

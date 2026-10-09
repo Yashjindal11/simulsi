@@ -150,7 +150,7 @@ class Forecast:
                 std=f.std,
                 sta=f.sta,
                 pax=f.pax,
-                p_on_time=float(np.sum(arr <= config.on_time)) / n,
+                p_on_time=_recalibrate(float(np.sum(arr <= config.on_time)) / n, config, n),
                 p_departure_on_time=float(np.sum(dep <= config.on_time)) / n,
                 p_cancel=1 - len(flown) / n,
                 dep_delay_p50=_quantile(dep, 0.5),
@@ -424,6 +424,14 @@ class Forecast:
             if len(alerts) > 20:
                 lines.append(f"  ... {len(alerts) - 20} more")
         return "\n".join(lines)
+
+
+def _recalibrate(p: float, config: OpsConfig, n: int) -> float:
+    a, b = config.otp_recalibration
+    if (a, b) == (0.0, 1.0):
+        return p
+    q = min(max(p, 0.5 / n), 1 - 0.5 / n)
+    return 1 / (1 + math.exp(-(a + b * math.log(q / (1 - q)))))
 
 
 def _quantile(values: np.ndarray, q: float) -> float:

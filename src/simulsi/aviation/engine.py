@@ -110,7 +110,16 @@ def build_day(
     rs_p, rs_b, rs_t = sim.stream("primary"), sim.stream("block"), sim.stream("turn")
     ordered = sorted(schedule.flights, key=lambda f: f.id)
     day = cfg.delays.day_factor(sim.stream("day"))
-    primary = {f.id: cfg.delays.primary(f, rs_p, day) for f in ordered}
+    airport_day, airport_cancel = cfg.delays.airport_factors(
+        schedule.airports, sim.stream("airport-day")
+    )
+    primary = {
+        f.id: cfg.delays.primary(f, rs_p, day * airport_day.get(f.origin, 1.0)) for f in ordered
+    }
+    rs_c = sim.stream("cancel")
+    cancel_draw = {f.id: rs_c.random() for f in ordered}
+    rs_wc = sim.stream("weather-cancel")
+    wx_cancel_draw = {f.id: rs_wc.random() for f in ordered}
     block = {f.id: cfg.delays.block(f, rs_b) for f in ordered}
     turn_factor = {f.id: rs_t.triangular(0.9, 1.0, 1.4) for f in ordered}
 
@@ -192,7 +201,33 @@ def build_day(
         return start + prev.block + cfg.min_crew_connect
 
     swap_signal: dict[str, Signal] = {}
-    released: dict[str, int] = {}
+    released: dict[str, tuple[str, int]] = {}
+
+    def has_spares(at: str) -> bool:
+        return bool(spares.get(at)) or (
+            cfg.spare_ferry_minutes is not None and any(spares.values())
+        )
+
+    def pick_spare(at: str, earliest: float) -> tuple[str, int, float] | None:
+        """The spare that can be ready at ``at`` first: local, or ferried in from elsewhere."""
+        best: tuple[str, int, float] | None = None
+        for where, pool in spares.items():
+            if where != at and cfg.spare_ferry_minutes is None:
+                continue
+            ferry = 0.0 if where == at else float(cfg.spare_ferry_minutes or 0.0)
+            for k, free_at in enumerate(pool):
+                ready_at = max(free_at + ferry, sim.now + SPARE_SETUP + ferry, earliest)
+                if best is None or ready_at < best[2]:
+                    best = (where, k, ready_at)
+        return best
+
+    def hand_over(where: str, k: int, at: str, late_ready: float) -> None:
+        """The late aircraft at ``at`` becomes a spare in place of the one taken from ``where``."""
+        if where == at:
+            spares[where][k] = late_ready
+        else:
+            spares[where][k] = math.inf  # flown away for good
+            spares.setdefault(at, []).append(late_ready)
 
     def controller(prev: Flight, nxt: Flight) -> Any:
         """Operations control looks at ``nxt`` an hour ahead while its aircraft is still inbound."""
@@ -201,17 +236,20 @@ def build_day(
             yield t - sim.now
         if arrived[prev.id].triggered or nxt.id in forced or nxt.id in status:
             return
-        pool = spares[nxt.origin]
         proj_ready = max(projected_arr[prev.id], sim.now) + cfg.turn(nxt.origin)
         if proj_ready - nxt.std <= cfg.swap_threshold:
             return
-        k = min(range(len(pool)), key=pool.__getitem__)
-        spare_ready = max(pool[k], sim.now + SPARE_SETUP, nxt.std)
-        if spare_ready < proj_ready - 0.5 * cfg.swap_threshold:
-            pool[k] = math.inf  # reserved until the late aircraft lands and takes its place
-            swap_signal[nxt.id].succeed((k, spare_ready))
+        pick = pick_spare(nxt.origin, nxt.std)
+        if pick is not None and pick[2] < proj_ready - 0.5 * cfg.swap_threshold:
+            where, k, spare_ready = pick
+            spares[where][k] = (
+                math.inf
+            )  # reserved until the late aircraft lands and takes its place
+            swap_signal[nxt.id].succeed((where, k, spare_ready))
 
-    def arrive(f: Flight, o: FlightOutcome, touchdown: float, queue: bool) -> Any:
+    def arrive(
+        f: Flight, o: FlightOutcome, touchdown: float, queue: bool, next_std: float = math.inf
+    ) -> Any:
         """Land, take a gate and turn; returns (gate request, ready time) unless swapped out."""
         if touchdown > sim.now:
             yield touchdown - sim.now
@@ -233,10 +271,13 @@ def build_day(
             arr_t = sim.now
             gate_req = yield sim.request(gate_pool)
             o.gate_wait = sim.now - arr_t
-        ready_t = sim.now + cfg.turn(f.dest) * turn_factor[f.id]
-        k = released.pop(f.id, None)
-        if k is not None:  # swapped out: this aircraft becomes the spare
-            spares[f.dest][k] = ready_t
+        tf = turn_factor[f.id]
+        if sim.now + cfg.turn(f.dest) * tf > next_std:  # running late: ground staff expedite
+            tf = 0.9 + (tf - 0.9) * cfg.late_turn_compression
+        ready_t = sim.now + cfg.turn(f.dest) * tf
+        slot = released.pop(f.id, None)
+        if slot is not None:  # swapped out: this aircraft becomes the spare
+            hand_over(slot[0], slot[1], f.dest, ready_t)
             if gate_req is not None:
                 yield ready_t - sim.now
                 sim.release(gate_req)
@@ -244,6 +285,9 @@ def build_day(
         if gate_req is not None:
             _move(gate_req, tail_process[f.tail])
         return gate_req, ready_t
+
+    def next_std(legs: Sequence[Flight], i: int) -> float:
+        return legs[i + 1].std if i + 1 < len(legs) else math.inf
 
     def rest_to_cancel(legs: Sequence[Flight], i: int) -> int:
         """Legs to cancel from ``i``: a round trip when possible, else the rest of the rotation."""
@@ -276,7 +320,10 @@ def build_day(
                 o.primary = max(0.0, o.dep_delay)
                 touchdown = st.ata if st.ata is not None else max(now0, st.atd + block[f.id])
                 projected_arr[f.id] = touchdown
-                arrival = sim.process(arrive(f, o, touchdown, queue=False), name=f"arr-{f.id}")
+                arrival = sim.process(
+                    arrive(f, o, touchdown, queue=False, next_std=next_std(legs, i)),
+                    name=f"arr-{f.id}",
+                )
             else:
                 decide_at = max(sim.now, f.std - LOOKAHEAD, now0)
                 if decide_at > sim.now:
@@ -286,15 +333,13 @@ def build_day(
                     earliest = max(earliest, st.etd)
                 crew = f.crew
                 # spare aircraft: swapped in while the late aircraft was inbound, or now
-                pool = spares.get(f.origin)
                 if spare_next:
                     o.spare, spare_next = True, False
-                elif ready - max(earliest, f.std) > cfg.swap_threshold and pool:
-                    k = min(range(len(pool)), key=pool.__getitem__)
-                    spare_ready = max(pool[k], sim.now + SPARE_SETUP)
-                    if spare_ready < ready - 0.5 * cfg.swap_threshold:
-                        pool[k] = ready
-                        ready = spare_ready
+                elif ready - max(earliest, f.std) > cfg.swap_threshold and has_spares(f.origin):
+                    pick = pick_spare(f.origin, sim.now)
+                    if pick is not None and pick[2] < ready - 0.5 * cfg.swap_threshold:
+                        hand_over(pick[0], pick[1], f.origin, ready)
+                        ready = pick[2]
                         o.spare = True
                 # standby crew for a late inbound crew
                 crew_proj = crew_ready_projection(f)
@@ -332,6 +377,30 @@ def build_day(
                     n = rest_to_cancel(legs, i)
                     for g in legs[i : i + n]:
                         cancel(g, "delay")
+                    i += n
+                    continue
+                if f.origin in airport_cancel:
+                    rate = airport_cancel[f.origin] / 2  # a decision usually cancels a round trip
+                else:
+                    rate = cfg.delays.cancel_rate * day * airport_day.get(f.origin, 1.0)
+                storm = max(
+                    (
+                        w.cancel
+                        for w in active
+                        if w.airport == f.origin and w.start <= f.std < w.end
+                    ),
+                    default=0.0,
+                )
+                if st is None and wx_cancel_draw[f.id] < storm:
+                    n = rest_to_cancel(legs, i)
+                    for g in legs[i : i + n]:
+                        cancel(g, "weather")
+                    i += n
+                    continue
+                if st is None and cancel_draw[f.id] < rate:
+                    n = rest_to_cancel(legs, i)
+                    for g in legs[i : i + n]:
+                        cancel(g, "other")
                     i += n
                     continue
                 # crew: wait for the real inbound crew unless a standby took over
@@ -374,25 +443,32 @@ def build_day(
                 o.dep_delay = o.dep - f.std
                 projected_arr[f.id] = o.dep + f.block
                 arrival = sim.process(
-                    arrive(f, o, o.dep + max(flown, block[f.id]), queue=True), name=f"arr-{f.id}"
+                    arrive(
+                        f,
+                        o,
+                        o.dep + max(flown, block[f.id]),
+                        queue=True,
+                        next_std=next_std(legs, i),
+                    ),
+                    name=f"arr-{f.id}",
                 )
             # wait for the aircraft - unless operations control swaps a spare in for the next leg
             nxt = legs[i + 1] if i + 1 < len(legs) else None
             swap = None
-            if nxt is not None and spares.get(nxt.origin) and o.dep >= now0 - 1e-9:
+            if nxt is not None and has_spares(nxt.origin) and o.dep >= now0 - 1e-9:
                 swap = swap_signal[nxt.id] = sim.signal(f"swap.{nxt.id}")
                 sim.process(controller(f, nxt), name=f"ctl-{nxt.id}")
                 if not arrival.triggered:
                     yield sim.any_of(arrival, swap)
             if swap is not None and swap.triggered:
-                k, spare_ready = swap.value
+                where, k, spare_ready = swap.value
                 if arrival.triggered:
                     landed = arrival.value
-                    spares[f.dest][k] = landed[1]
+                    hand_over(where, k, f.dest, landed[1])
                     if landed[0] is not None:
                         _release_later(landed[0], max(0.0, landed[1] - sim.now))
                 else:
-                    released[f.id] = k
+                    released[f.id] = (where, k)
                 ready, gate_req, spare_next = spare_ready, None, True
             else:
                 landed = yield arrival
@@ -414,6 +490,72 @@ def build_day(
         result["metrics"] = metrics
 
     sim.on_finish(finish)
+
+
+def rebook(
+    schedule: Schedule,
+    cfg: OpsConfig,
+    outcomes: Mapping[str, FlightOutcome],
+    misconnected: Mapping[tuple[str, str], int],
+) -> dict[str, float]:
+    """Re-accommodate disrupted passengers on later direct flights with free seats.
+
+    Misconnected passengers and the local passengers of cancelled flights
+    are placed, earliest need first, on the first operated flight from
+    where they are to where they are going that leaves after they are
+    ready and still has seats (``seats``, or ``pax / load_factor`` when a
+    flight has no seat count). Whoever finds no seat today is stranded
+    until tomorrow (``overnight_delay`` minutes).
+    """
+    by_route: dict[tuple[str, str], list[Flight]] = {}
+    free: dict[str, int] = {}
+    for f in schedule.flights:
+        o = outcomes[f.id]
+        if o.cancelled:
+            continue
+        by_route.setdefault((f.origin, f.dest), []).append(f)
+        seats = f.seats or round(f.pax / max(cfg.load_factor, 1e-9))
+        free[f.id] = max(0, seats - f.pax)
+    for legs in by_route.values():
+        legs.sort(key=lambda g: outcomes[g.id].dep)
+    needs: list[tuple[float, str, str, float, int]] = []  # ready, from, to, planned arrival, pax
+    connecting_on: dict[str, int] = {}
+    for c in schedule.connections:
+        connecting_on[c.inbound] = connecting_on.get(c.inbound, 0) + c.pax
+    for (inbound, outbound), pax in misconnected.items():
+        i, out = schedule.by_id[inbound], schedule.by_id[outbound]
+        oi = outcomes[inbound]
+        if oi.cancelled:
+            needs.append((i.std, i.origin, out.dest, out.sta, pax))
+        else:
+            needs.append((oi.arr + cfg.mct, out.origin, out.dest, out.sta, pax))
+    for f in schedule.flights:
+        if outcomes[f.id].cancelled:
+            local = max(0, f.pax - connecting_on.get(f.id, 0))
+            if local:
+                needs.append((f.std, f.origin, f.dest, f.sta, local))
+    rebooked = stranded = 0
+    delay_min = 0.0
+    for ready, origin, dest, planned, pax in sorted(needs):
+        left = pax
+        for g in by_route.get((origin, dest), []):
+            if left == 0:
+                break
+            og = outcomes[g.id]
+            if og.dep < ready or free[g.id] == 0:
+                continue
+            take = min(left, free[g.id])
+            free[g.id] -= take
+            left -= take
+            rebooked += take
+            delay_min += take * max(0.0, og.arr - planned)
+        stranded += left
+        delay_min += left * cfg.overnight_delay
+    return {
+        "rebooked_pax": float(rebooked),
+        "stranded_pax": float(stranded),
+        "disrupted_pax_delay_hours": delay_min / 60,
+    }
 
 
 def summarize(
@@ -438,6 +580,7 @@ def summarize(
         if i.cancelled or o.cancelled or o.dep - i.arr < cfg.mct:
             misconnected[(c.inbound, c.outbound)] = c.pax
     missed = sum(misconnected.values())
+    reaccommodation = rebook(schedule, cfg, outcomes, misconnected)
     comp = 0.0
     if cfg.eu261:
         for o in outcomes.values():
@@ -463,6 +606,8 @@ def summarize(
         "cancelled.delay": float(by_reason.get("delay", 0)),
         "cancelled.crew": float(by_reason.get("crew", 0)),
         "cancelled.curfew": float(by_reason.get("curfew", 0)),
+        "cancelled.other": float(by_reason.get("other", 0)),
+        "cancelled.weather": float(by_reason.get("weather", 0)),
         "otp": on_time_arr / n_op if n_op else math.nan,
         "otp_departure": on_time_dep / n_op if n_op else math.nan,
         "arrival_delay.mean": arr_delay / n_op if n_op else math.nan,
@@ -472,6 +617,7 @@ def summarize(
         "connecting_pax": float(connecting),
         "misconnected_pax": float(missed),
         "misconnect_rate": missed / connecting if connecting else 0.0,
+        **reaccommodation,
         "spare_swaps": float(sum(o.spare for o in outcomes.values())),
         "standby_used": float(sum(o.standby for o in outcomes.values())),
         "crew_risk_flights": float(sum(o.crew_risk for o in operated)),
@@ -541,6 +687,9 @@ def network_model(
             block_scale=delays.block_scale,
             shape=delays.shape,
             day_sigma=delays.day_sigma,
+            airport_days=delays.airport_days,
+            cancel_rate=delays.cancel_rate,
+            cancel_days=delays.cancel_days,
             predictor=delays.predictor,
         )
         cfg = cfg0.replace(
