@@ -120,3 +120,16 @@ def test_random_stream_helpers() -> None:
     ):
         assert math.isfinite(value)
     assert "seed=5" in repr(r)
+
+
+def test_experiment_runs_on_any_executor() -> None:
+    import concurrent.futures as cf
+
+    from simulsi import Experiment
+    from simulsi.models import mmc
+
+    exp = Experiment(mmc, replications=4, seed=3)
+    serial = exp.run()
+    with cf.ThreadPoolExecutor(max_workers=2) as pool:
+        threaded = exp.run(executor=pool)
+    assert [r.metrics for r in threaded.records] == [r.metrics for r in serial.records]

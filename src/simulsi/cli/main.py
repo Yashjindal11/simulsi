@@ -190,7 +190,19 @@ def cmd_experiment(args: argparse.Namespace) -> int:
             f"({'precision reached' if st.get('met') else 'max_replications reached: ' + ', '.join(st.get('unmet', []))})"
         )
     else:
-        result = exp.run(checkpoint=args.checkpoint, progress=progress)
+        if args.dask:
+            try:
+                from dask.distributed import Client  # type: ignore[import-not-found]
+            except ImportError as exc:
+                raise ImportError(
+                    "--dask needs dask.distributed: pip install 'dask[distributed]'"
+                ) from exc
+            with Client(args.dask) as client:
+                result = exp.run(
+                    checkpoint=args.checkpoint, progress=progress, executor=client.get_executor()
+                )
+        else:
+            result = exp.run(checkpoint=args.checkpoint, progress=progress)
     if cfg.cost:
         result.derive(CostModel.from_dict(cfg.cost).metrics)
     metrics = cfg.metrics
@@ -358,6 +370,10 @@ def cmd_visualize(args: argparse.Namespace) -> int:
         res = m.simulate(_parse_params(args.param), seed=args.seed, trace=True, record_series=True)
         save(plots.plot_queue_length(res, backend=args.backend), "queue_length")
         save(plots.plot_utilization(res, backend=args.backend), "utilization")
+        if args.gif:
+            from simulsi.visualization.animation import animate_series
+
+            written.append(animate_series(res, out / "replay.gif"))
         if res.log is not None and len(res.log):
             save(plots.plot_timeline(res.log, backend=args.backend), "timeline")
             save(
@@ -715,6 +731,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--output", "-o", help="results directory (overrides output.directory)")
     s.add_argument("--checkpoint", help="JSON-lines checkpoint file for resumable runs")
     s.add_argument(
+        "--dask", metavar="ADDRESS", help="run replications on a Dask cluster (scheduler address)"
+    )
+    s.add_argument(
         "--until-precision",
         type=float,
         metavar="P",
@@ -834,6 +853,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--format", choices=["png", "svg", "pdf"], default="png")
     s.add_argument("--param", "-p", action="append", metavar="KEY=VALUE")
     s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--gif", action="store_true", help="also record an animated replay (replay.gif)")
     s.set_defaults(func=cmd_visualize)
 
     s = sub.add_parser("ui", help="start the local web dashboard (127.0.0.1 only by default)")

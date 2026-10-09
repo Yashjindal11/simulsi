@@ -80,6 +80,53 @@ def test_routing_rest_patience_units_delay_and_rate_table() -> None:
     assert r["sink.done"] > 0 and r["route.split.duo"] == duo
 
 
+def test_batch_station_serves_groups_once() -> None:
+    spec = _flow(
+        duration=1000,
+        resources={"oven": 1},
+        sources=[{"name": "tray", "interarrival": 1.0, "limit": 40, "next": "bake"}],
+        stations={"bake": {"resource": "oven", "service": 3.0, "batch": 4, "next": "exit"}},
+    )
+    r = load_flowchart(spec).simulate(seed=1).metrics
+    assert r["sink.exit"] == 40 and r["station.bake.batch_size.mean"] == 4.0
+    assert r["station.bake.batch_size.count"] == 10
+    # 10 bakes of 3 minutes each: the oven is busy 30 of the 1000 minutes
+    assert r["resource.oven.utilization"] == pytest.approx(0.03)
+
+    timed = _flow(
+        sources=[{"name": "tray", "interarrival": 10.0, "limit": 3, "next": "bake"}],
+        stations={"bake": {"delay": 1.0, "batch": {"size": 5, "timeout": 2.0}, "next": "exit"}},
+    )
+    r = load_flowchart(timed).simulate(seed=1).metrics
+    assert r["sink.exit"] == 3 and r["station.bake.batch_size.mean"] == 1.0
+
+
+def test_parallel_station_joins_on_slowest_branch() -> None:
+    spec = _flow(
+        resources={"lab": 1},
+        sources=[{"name": "p", "interarrival": 100.0, "limit": 3, "next": "tests"}],
+        stations={
+            "tests": {
+                "parallel": {"blood": {"resource": "lab", "service": 5.0}, "xray": {"delay": 8.0}},
+                "next": "exit",
+            }
+        },
+    )
+    r = load_flowchart(spec).simulate(seed=1).metrics
+    assert r["sink.exit"] == 3 and r["station.tests.blood.visits"] == 3
+    assert r["entity.p.time_in_system.mean"] == pytest.approx(8.0)
+    with pytest.raises(ConfigError, match="only 'parallel'"):
+        load_flowchart(
+            _flow(stations={"till": {"parallel": {"a": {"delay": 1}}, "delay": 1, "next": "exit"}})
+        )
+    with pytest.raises(ConfigError, match="branch 'a'"):
+        load_flowchart(
+            _flow(stations={"till": {"parallel": {"a": {"resource": "x"}}, "next": "exit"}})
+        )
+    with pytest.raises(ConfigError, match="batch"):
+        load_flowchart(_flow(stations={"till": {"delay": 1, "batch": [2], "next": "exit"}}))
+
+
 @pytest.mark.parametrize(
     ("change", "message"),
     [

@@ -226,6 +226,7 @@ class Experiment:
         workers: int | None = None,
         checkpoint: str | Path | None = None,
         progress: Callable[[int, int], None] | None = None,
+        executor: cf.Executor | None = None,
         _reuse: dict[tuple[str, int], ReplicationRecord] | None = None,
     ) -> ExperimentResult:
         """Run every (scenario, replication) pair and collect the results.
@@ -233,6 +234,12 @@ class Experiment:
         ``checkpoint`` names a JSON-lines file: finished replications are
         appended as they complete, and a re-run with the same file skips them
         (after checking that the experiment definition matches).
+
+        ``executor`` runs the replications on any :class:`concurrent.futures.Executor`
+        instead of local worker processes - for example a cluster through
+        Dask (``distributed.Client(...).get_executor()``) or Ray
+        (``ray.util.ActorPool``-backed executors). Results are identical,
+        because every replication's seed is fixed in advance.
         """
         if scenario is not None:
             self.scenarios = [scenario] if isinstance(scenario, Scenario) else list(scenario)
@@ -293,7 +300,12 @@ class Experiment:
             (self.model, name, params_by_scenario[name], r, s, raise_errors, self._sampling(r))
             for name, r, s in todo
         ]
-        if self.workers == 1 or len(args) <= 1:
+        if executor is not None:
+            _check_picklable(self.model)
+            futures = [executor.submit(_run_task, a) for a in args]
+            for fut in cf.as_completed(futures):
+                handle(fut.result())
+        elif self.workers == 1 or len(args) <= 1:
             for a in args:
                 handle(_run_task(a))
         else:

@@ -1,5 +1,6 @@
 """Optional visualization. Requires matplotlib (``simulsi[viz]``) or Plotly (``simulsi[plotly]``)."""
 
+from simulsi.visualization.animation import animate_series
 from simulsi.visualization.plots import (
     plot_comparison,
     plot_convergence,
@@ -14,6 +15,7 @@ from simulsi.visualization.plots import (
 )
 
 __all__ = [
+    "animate_series",
     "plot_comparison",
     "plot_convergence",
     "plot_distribution",

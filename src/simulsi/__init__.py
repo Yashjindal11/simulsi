@@ -18,7 +18,7 @@ from simulsi.errors import (
 from simulsi.events import Event, EventStatus, Priority
 from simulsi.experiments import Experiment, ExperimentResult, MonteCarloResult, monte_carlo
 from simulsi.metrics import Metrics
-from simulsi.processes import AllOf, AnyOf, Process, Signal, Timeout, Waitable
+from simulsi.processes import AllOf, AnyOf, Level, Process, Signal, Timeout, Waitable
 from simulsi.queues import Queue
 from simulsi.randomness import RandomStream
 from simulsi.resources import Container, Preempted, Request, Resource
@@ -40,6 +40,7 @@ __all__ = [
     "Experiment",
     "ExperimentResult",
     "Interrupt",
+    "Level",
     "LogRecord",
     "Metrics",
     "Model",

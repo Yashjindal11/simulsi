@@ -32,6 +32,12 @@ optimiser like any Python model.
       presets:
         extra_doctor: {doctors: 4}
 
+Two more station kinds: ``batch: 4`` (or ``batch: {size: 4, timeout: 30}``)
+holds entities until a group is ready and does the step once for the whole
+group (an oven, a shuttle); ``parallel: {lab: {...}, xray: {...}}`` splits
+an entity into branches that run at the same time and joins when the
+slowest finishes.
+
 Load it with :func:`load_flowchart` (or pass the file to any CLI command
 that takes a model). Files are data only: they can create registered
 distributions and the building blocks below, never run code.
@@ -55,7 +61,9 @@ from simulsi.randomness.distributions import Distribution, as_distribution
 MAX_VISITS = 1_000
 
 _SOURCE_KEYS = {"name", "entity", "interarrival", "rate", "rate_table", "period", "limit", "next"}
-_STATION_KEYS = {"resource", "service", "delay", "units", "patience", "priority", "next"}
+_STEP_KEYS = {"resource", "service", "delay", "units", "patience", "priority"}
+_STATION_KEYS = _STEP_KEYS | {"next", "batch", "parallel"}
+_BATCH_KEYS = {"size", "timeout"}
 _RESOURCE_KEYS = {"capacity", "discipline", "schedule", "period"}
 _TOP_KEYS = {
     "name",
@@ -142,11 +150,10 @@ def _validate(spec: Mapping[str, Any]) -> None:
         if sum(k in s for k in ("interarrival", "rate", "rate_table")) != 1:
             raise ConfigError(f"{where}: give exactly one of interarrival, rate or rate_table")
         check_next(s.get("next"), where)
-    for name, st in stations.items():
-        where = f"station {name!r}"
+
+    def check_step(st: Any, where: str) -> None:
         if not isinstance(st, Mapping):
             raise ConfigError(f"{where} must be a mapping")
-        _check_keys(st, _STATION_KEYS, where)
         if "resource" in st:
             if st["resource"] not in resources:
                 raise ConfigError(f"{where}: unknown resource {st['resource']!r}")
@@ -154,6 +161,31 @@ def _validate(spec: Mapping[str, Any]) -> None:
                 raise ConfigError(f"{where}: a resource station needs 'service'")
         elif "delay" not in st:
             raise ConfigError(f"{where}: give 'resource' + 'service', or 'delay'")
+
+    for name, st in stations.items():
+        where = f"station {name!r}"
+        if not isinstance(st, Mapping):
+            raise ConfigError(f"{where} must be a mapping")
+        _check_keys(st, _STATION_KEYS, where)
+        if "parallel" in st:
+            branches = st["parallel"]
+            if not isinstance(branches, Mapping) or not branches:
+                raise ConfigError(f"{where}: 'parallel' must map branch name -> step")
+            if set(st) & _STEP_KEYS:
+                raise ConfigError(f"{where}: a parallel station has only 'parallel' and 'next'")
+            for b, step in branches.items():
+                bw = f"{where} branch {b!r}"
+                if isinstance(step, Mapping):
+                    _check_keys(step, _STEP_KEYS, bw)
+                check_step(step, bw)
+        else:
+            check_step(st, where)
+        if "batch" in st:
+            b = st["batch"]
+            if isinstance(b, Mapping):
+                _check_keys(b, _BATCH_KEYS, f"{where} batch")
+            elif not isinstance(b, (int, str)):
+                raise ConfigError(f"{where}: 'batch' must be a size or {{size, timeout}}")
         check_next(st.get("next"), where)
     for name, r in resources.items():
         if isinstance(r, Mapping):
@@ -198,22 +230,92 @@ def flowchart_model(spec: Mapping[str, Any]) -> Model:
                 routers[origin] = Router(sim, origin, fixed)
             return routers[origin].choose()
 
-        streams = {name: sim.stream(f"service:{name}") for name in stations}
+        steps: dict[str, Mapping[str, Any]] = {}
+        for name, st in stations.items():
+            if "parallel" in st:
+                for b, step in st["parallel"].items():
+                    steps[f"{name}.{b}"] = step
+            else:
+                steps[name] = st
+        streams = {name: sim.stream(f"service:{name}") for name in steps}
         dists = {
             name: _dist(st.get("service", st.get("delay")), f"station {name!r}")
-            for name, st in stations.items()
+            for name, st in steps.items()
         }
         patience = {
             name: _dist(st["patience"], f"station {name!r} patience")
-            for name, st in stations.items()
+            for name, st in steps.items()
             if "patience" in st
         }
-        for name in stations:
+        for name in [*stations, *(s for s in steps if s not in stations)]:
             sim.metrics.counter(f"station.{name}.visits")
             if name in patience:
                 sim.metrics.counter(f"station.{name}.abandoned")
         for s in sinks:
             sim.metrics.counter(f"sink.{s}")
+
+        def do_step(entity: Any, key: str) -> Any:
+            """Seize the resource (if any) and spend the service time; returns True if abandoned."""
+            st = steps[key]
+            duration = max(0.0, float(dists[key].sample(streams[key])))
+            if "resource" not in st:
+                yield duration
+                return False
+            res = resources[st["resource"]]
+            reqs: list[Any] = []
+            pat = float(patience[key].sample(streams[key])) if key in patience else None
+            for _ in range(int(st.get("units", 1))):
+                req = yield sim.request(
+                    res, priority=float(st.get("priority", 0)), entity=entity, patience=pat
+                )
+                if not req.granted:
+                    for r in reqs:
+                        res.release(r)
+                    sim.metrics.increment(f"station.{key}.abandoned")
+                    return True
+                reqs.append(req)
+            yield duration
+            for r in reqs:
+                res.release(r)
+            return False
+
+        def parallel_step(entity: Any, where: str) -> Any:
+            """Split into one branch per step, run them at once and join when all finish."""
+            procs = []
+            for b in stations[where]["parallel"]:
+                sim.metrics.increment(f"station.{where}.{b}.visits")
+                procs.append(sim.process(do_step(entity, f"{where}.{b}"), name=f"{where}.{b}"))
+            yield sim.all_of(procs)
+            return any(p.value for p in procs)
+
+        gates: dict[str, dict[str, Any]] = {}
+
+        def batch_step(entity: Any, where: str) -> Any:
+            """Wait for a full batch (or the timeout), then do the step once for all of them."""
+            b = stations[where]["batch"]
+            size = int(b["size"] if isinstance(b, Mapping) else b)
+            timeout = b.get("timeout") if isinstance(b, Mapping) else None
+            gate = gates.get(where)
+            leader = gate is None
+            if gate is None:
+                gate = gates[where] = {"n": 0, "full": sim.signal(), "done": sim.signal()}
+            gate["n"] += 1
+            if gate["n"] >= size:
+                gates.pop(where, None)
+                gate["full"].succeed()
+            if not leader:
+                return bool((yield gate["done"]))
+            if not gate["full"].triggered:
+                if timeout is None:
+                    yield gate["full"]
+                else:
+                    yield sim.any_of(gate["full"], sim.timeout(float(timeout)))
+            if gates.get(where) is gate:
+                del gates[where]
+            sim.metrics.observe(f"station.{where}.batch_size", gate["n"])
+            abandoned = yield from do_step(entity, where)
+            gate["done"].succeed(abandoned)
+            return abandoned
 
         def journey(entity: Any, first: Any, origin: str) -> Any:
             where = route(origin, first)
@@ -226,33 +328,15 @@ def flowchart_model(spec: Mapping[str, Any]) -> Model:
                     )
                 st = stations[where]
                 sim.metrics.increment(f"station.{where}.visits")
-                duration = max(0.0, float(dists[where].sample(streams[where])))
-                if "resource" in st:
-                    res = resources[st["resource"]]
-                    reqs = []
-                    pat = (
-                        float(patience[where].sample(streams[where])) if where in patience else None
-                    )
-                    abandoned = False
-                    for _ in range(int(st.get("units", 1))):
-                        req = yield sim.request(
-                            res, priority=float(st.get("priority", 0)), entity=entity, patience=pat
-                        )
-                        if not req.granted:
-                            abandoned = True
-                            break
-                        reqs.append(req)
-                    if abandoned:
-                        for r in reqs:
-                            res.release(r)
-                        sim.metrics.increment(f"station.{where}.abandoned")
-                        where = "abandoned"
-                        break
-                    yield duration
-                    for r in reqs:
-                        res.release(r)
+                if "parallel" in st:
+                    abandoned = yield from parallel_step(entity, where)
+                elif "batch" in st:
+                    abandoned = yield from batch_step(entity, where)
                 else:
-                    yield duration
+                    abandoned = yield from do_step(entity, where)
+                if abandoned:
+                    where = "abandoned"
+                    break
                 where = route(where, st["next"])
             sim.metrics.increment(f"sink.{where}")
             sim.dispose(entity, where)

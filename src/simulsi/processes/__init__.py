@@ -1,3 +1,4 @@
+from simulsi.processes.continuous import Level
 from simulsi.processes.disruption import (
     FailureProcess,
     RecoveryProcess,
@@ -23,6 +24,7 @@ __all__ = [
     "AnyOf",
     "Condition",
     "FailureProcess",
+    "Level",
     "PiecewiseRate",
     "Process",
     "ProcessGenerator",
