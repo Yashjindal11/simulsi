@@ -62,6 +62,7 @@ can someone else reproduce this? SimulSI is built **experiment-first**:
 | **Monte Carlo & sensitivity** | Propagate input uncertainty (random or Latin hypercube sampling, vectorised or per simulation run). One-at-a-time, finite-difference, correlation and standardised-regression sensitivity. |
 | **Provenance** | Each experiment records id, model name/version, git commit, timestamp, seeds, parameters, runtime and environment. Results export to JSON, CSV and Parquet. |
 | **Model introspection** | `snapshot()` of live state, structured event logs, observed flow graphs (arrival -> queue -> service -> departure), entity state machines, and model validation with a smoke run (unreleased resources, possible deadlocks, zero capacities, unreached states). |
+| **Beyond queues** | Continuous `Level`s with exact threshold crossings, movement on road and grid networks (`simulsi.spatial`), event-driven `wait_until(..., on=[...])`, animated GIF replays. |
 | **Decision support** | Cost/revenue models on top of metrics; an `Objective` adapter that hands models to scipy.optimize, OR-Tools, evolutionary or Bayesian optimisers without depending on any of them. |
 | **Local-first** | No LLMs, API keys, telemetry or network access. Core dependencies: NumPy, SciPy, pydantic, PyYAML. Plotting, pandas, Parquet and the web dashboard are optional. |
 
@@ -170,9 +171,11 @@ spares, standby crews and passenger connections:
 
 - **day ahead**: per-flight on-time and cancellation chances, delay ranges,
   fragile rotations, connection risk and alerts, under weather scenarios;
-- **live twin**: re-forecast the rest of the day from actual times;
+- **live twin**: re-forecast the rest of the day from actual times, from a
+  file or an http(s) status feed (`simulsi aviation watch`);
 - **what-ifs and recovery**: cancel, retime or swap aircraft, compared on
-  the same disturbances, plus a greedy recovery search;
+  the same disturbances, plus a greedy recovery search; disrupted
+  passengers are rebooked on later flights;
 - **planning**: spares and standby crews, schedule buffers, schedule changes;
 - **calibration**: fit delays to history (including US BTS files), backtest
   with reliability tables, plug in an ML delay predictor;
@@ -187,10 +190,11 @@ simulsi aviation recover schedule.csv -c connections.csv --ops ops.yaml --status
 ```
 
 The dashboard has an *Airline ops twin* page with a Gantt chart of the
-rotations. See [Airline operations](docs/aviation.md) and the
-[Alaska Airlines case study](docs/case-study-bts.md) on a month of public BTS
-data (calibrated forecasts, then live re-forecasts that beat the day-ahead
-ones by 16% on Brier score by evening).
+rotations and recovery and reserve planning. See
+[Airline operations](docs/aviation.md) and the
+[BTS case study](docs/case-study-bts.md): Alaska, JetBlue and Delta over
+four months of public data, with honest results - small day-ahead skill,
+consistent gains from live re-forecasts.
 
 ## Examples
 

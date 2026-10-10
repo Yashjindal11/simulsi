@@ -350,8 +350,8 @@ forecasts:
 * **Live scoring** with `live_at=[...]`: it also re-forecasts from the
   live state at those times and scores the flights still to depart.
 
-See the [Alaska Airlines case study](case-study-bts.md) for a full run on
-a month of real data.
+See the [BTS case study](case-study-bts.md) for full runs on real data:
+one month in detail and three carriers over four months.
 
 ```python
 from simulsi.aviation import Schedule, OpsConfig, DelayModel, History, calibrate, backtest

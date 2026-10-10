@@ -34,7 +34,11 @@ All notable changes to this project are documented here. The format follows
   (`OpsState.load`) and `simulsi aviation watch`; dashboard recovery and
   reserve planning.
 - Multi-month, multi-carrier BTS case study (`scripts/case_study_bts.py`
-  accepts several files and carriers).
+  accepts several files and carriers): Alaska, JetBlue and Delta over
+  four months, about 530,000 flights. Live re-forecasts beat day-ahead
+  ones in all 12 carrier-months (Brier 5-18% better by 18:00);
+  day-ahead skill is small; storms and Delta's level are documented
+  limits.
 
 ### Changed
 

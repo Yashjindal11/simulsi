@@ -63,7 +63,7 @@ nav:
       - Built-in model gallery: models.md
       - Flowchart models (YAML): flowcharts.md
       - Airline operations: aviation.md
-      - "Case study: Alaska Airlines on BTS data": case-study-bts.md
+      - "Case study: US airlines on BTS data": case-study-bts.md
       - Examples and notebooks: examples.md
       - Coming from SimPy: simpy-migration.md
   - Background:
