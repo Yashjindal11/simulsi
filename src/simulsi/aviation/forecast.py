@@ -489,7 +489,8 @@ def forecast(
 
     >>> from simulsi.aviation import Schedule
     >>> fc = forecast(Schedule.synthetic(tails=4), replications=20)
-    >>> 0 <= fc.summary()["otp"]["mean"] <= 1
+    >>> otp = fc.summary()["otp"]
+    >>> 0 <= otp["mean"] <= 1
     True
     """
     if replications < 1:

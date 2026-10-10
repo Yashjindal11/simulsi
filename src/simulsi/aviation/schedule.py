@@ -127,8 +127,8 @@ class Schedule:
     ...     Flight("A1", "T1", "HUB", "AAA", 360, 450),
     ...     Flight("A2", "T1", "AAA", "HUB", 495, 585),
     ... ])
-    >>> [f.id for f in s.rotations["T1"]]
-    ['A1', 'A2']
+    >>> ", ".join(f.id for f in s.rotations["T1"])
+    'A1, A2'
     """
 
     def __init__(self, flights: Iterable[Flight], connections: Iterable[Connection] = ()) -> None:
