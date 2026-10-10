@@ -6,6 +6,43 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-10
+
+### Added
+
+- Core: `sim.wait_until(predicate, on=[resources, containers, queues])`
+  re-checks only when those change (about 8x faster with many waiters).
+- Core: `Level`, a continuous quantity with a piecewise-constant rate,
+  bounds, exact threshold-crossing events (`when`) and an exact time
+  average.
+- `simulsi.spatial`: `Network` (Dijkstra shortest paths, closures,
+  nearest, matrix, `trip` inside processes), `grid_network` with walls and
+  diagonals, `Network.from_coordinates` with great-circle distances.
+- Flowcharts: `batch` stations (one step for a whole group, with an
+  optional timeout) and `parallel` stations (split/join branches).
+- Experiments: `Experiment.run(executor=...)` for any
+  `concurrent.futures` executor; `simulsi experiment --dask ADDRESS`.
+- Visualization: `animate_series` and `simulsi visualize --gif`.
+- Aviation: BTS delay causes and cancellation codes (`History.causes()`),
+  ZIP reading, `History.concat`; airport good and bad days and daily
+  cancellation profiles fitted from history; storm cancellations
+  (`WeatherEvent.cancel`, `c=` in weather strings); Platt recalibration of
+  on-time probabilities (`fit_recalibration`, `OpsConfig.otp_recalibration`,
+  `calibrate --recalibrate`); `fit_late_turns`; passenger rebooking with
+  `rebooked_pax`, `stranded_pax` and `disrupted_pax_delay_hours`; ferried
+  spares (`spare_ferry_minutes`); live status from files or http(s) feeds
+  (`OpsState.load`) and `simulsi aviation watch`; dashboard recovery and
+  reserve planning.
+- Multi-month, multi-carrier BTS case study (`scripts/case_study_bts.py`
+  accepts several files and carriers).
+
+### Changed
+
+- With probability recalibration set, the forecast's network OTP now
+  agrees with the recalibrated flight probabilities; flights that have
+  already landed are no longer recalibrated. The fitted day effect is
+  capped at a lognormal sigma of 1.0.
+
 ## [0.8.0] - 2026-10-09
 
 ### Added

@@ -236,10 +236,10 @@ class Experiment:
         (after checking that the experiment definition matches).
 
         ``executor`` runs the replications on any :class:`concurrent.futures.Executor`
-        instead of local worker processes - for example a cluster through
-        Dask (``distributed.Client(...).get_executor()``) or Ray
-        (``ray.util.ActorPool``-backed executors). Results are identical,
-        because every replication's seed is fixed in advance.
+        instead of local worker processes - for example a Dask cluster
+        (``distributed.Client(...).get_executor()``), or a thread pool for
+        models that release the GIL. Results are identical, because every
+        replication's seed is fixed in advance.
         """
         if scenario is not None:
             self.scenarios = [scenario] if isinstance(scenario, Scenario) else list(scenario)

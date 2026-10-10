@@ -85,6 +85,29 @@ many units to hold - `priority` and `patience`), or `delay` (time passes
 with no resource). Durations are numbers or
 [distribution specs](concepts.md#randomness).
 
+Two more kinds of station:
+
+* **batch**: add `batch: 4` (or `batch: {size: 4, timeout: 30}`) to a
+  station. Entities wait until the group is complete (or the timeout
+  passes since the first one arrived), then the step runs once for the
+  whole group: one oven load, one shuttle trip. Afterwards each entity
+  continues on its own. Metric: `station.<name>.batch_size.*`.
+* **parallel** (split/join): `parallel: {name: step, ...}` plus `next`.
+  Each branch is a `resource` + `service` or `delay` step; an entity runs
+  all branches at the same time and moves on when the slowest finishes
+  (blood test and X-ray, paperwork and inspection). Metric:
+  `station.<name>.<branch>.visits`.
+
+```yaml
+  stations:
+    tests:
+      parallel:
+        blood: {resource: lab, service: {distribution: exponential, mean: 20}}
+        xray: {resource: radiology, service: 15}
+      next: consult
+    shuttle: {delay: 25, batch: {size: 12, timeout: 20}, next: exit}
+```
+
 **next**: a station or sink name, or a mapping `{name: probability}`; one
 entry may be `rest` for whatever probability is left. Sinks are `exit` plus
 any names listed in `sinks`; entities that run out of patience go to the

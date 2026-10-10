@@ -128,12 +128,32 @@ weather:
 
 * the chance and mean size of a primary delay, overridable per airport
   (`"LHR"`) or per airport and hour (`"LHR@07"`);
-* block-time variability, with an optional per-route bias.
+* block-time variability, with an optional per-route bias;
+* the empirical *shape* of delays and a *day effect*: a whole day is
+  better or worse than average (`day_sigma`), and each airport also has
+  good and bad days (`airport_days`, quantiles of a daily factor);
+* cancellations not caused by delay (`cancel_rate`, or `cancel_days`:
+  quantiles of the daily cancelled share per airport). An airport's bad
+  delay day is also its bad cancellation day; both use one draw.
+
+Calibration fits all of these from history (see below).
 
 Weather events cut an airport's departure and arrival rate to `capacity`
 times normal during a window, with a `probability`. Each simulated day
-draws whether the event happens. There are presets: `thunderstorm`,
-`morning_fog`, `snow` and `closure`.
+draws whether the event happens. An event can also cancel flights
+outright: `"JFK 06:00-20:00 0.3 p=1 c=0.4"` cancels each departure in the
+window with probability 0.4, as airlines do ahead of a forecast storm.
+There are presets: `thunderstorm`, `morning_fog`, `snow` and `closure`.
+
+Other settings:
+
+| Setting | Meaning |
+| --- | --- |
+| `spare_ferry_minutes` | when set, a spare at another airport can be ferried in, ready after this many minutes; otherwise spares only cover their own airport |
+| `load_factor` | used to estimate seats when the schedule has none, for rebooking |
+| `overnight_delay` | delay charged to a passenger who cannot be rebooked the same day |
+| `late_turn_compression` | how much of the minimum turn a late aircraft can save (1 = none); fitted by `fit_late_turns` |
+| `otp_recalibration` | `(a, b)` Platt correction of the reported on-time chances, fitted by `fit_recalibration` |
 
 ## The day before: forecasts
 
@@ -186,7 +206,16 @@ for row in rolling_forecast(s, rules, truth=truth, times=[300, 720, 1080], repli
     print(row)
 ```
 
-## What-ifs and recovery
+`OpsState.load(source)` reads the state from a CSV or JSON file or an
+http(s) URL (for example an internal feed that exports the status
+columns). JSON can be a list of rows or `{"now": "12:00", "flights":
+[...]}`. `simulsi aviation watch --feed URL --every 300` re-reads the feed
+and re-forecasts every five minutes, printing the alerts and optionally
+writing the latest forecast JSON for another system to pick up.
+
+The dashboard's *Airline ops twin* page runs the same forecasts, and its
+*Decisions* panel runs `recover` and `plan_reserves` on the same schedule,
+rules, weather and live state as background jobs.
 
 Actions change the plan:
 
@@ -248,6 +277,12 @@ print(schedule_impact(Schedule.synthetic(), Schedule.synthetic(banks=False), rul
 * `recommend_mct` gives the minimum connection time for a reliability
   target, from inbound and outbound delays and walking time.
 
+Every simulated day also re-accommodates disrupted passengers: those on a
+cancelled flight or who miss a connection are put on the next direct
+flight to their destination that still has seats. The day's metrics
+include `rebooked_pax`, `stranded_pax` (no seat until tomorrow) and
+`disrupted_pax_delay_hours`, the total arrival delay of those passengers.
+
 ```python
 from simulsi.aviation import turnaround, overbooking, recommend_mct
 
@@ -288,7 +323,20 @@ There are two ways to fit the delay model:
   days vary together as much as real ones do.
 
 `fit_turn_times` estimates each airport's minimum turn from the fastest
-turns actually flown.
+turns actually flown. `fit_late_turns` checks whether late aircraft turn
+faster than on-time ones.
+
+BTS files also carry delay causes (carrier, weather, NAS, security, late
+aircraft) and cancellation codes. `history.causes()` summarises them,
+which shows how much of the delay the model must produce by itself
+(late aircraft) and how much is primary. `History.concat` joins months.
+
+`fit_recalibration` fits a Platt correction to the forecast on-time
+chances on past days. Simulated chances can be too sure, for example
+because real controllers recover late aircraft in ways the model does not
+know; the correction removes that bias without changing the simulation.
+`simulsi aviation calibrate --write-ops ops.yaml --recalibrate` fits it
+along with the delay model.
 
 `backtest` forecasts each past day from its schedule alone and scores the
 forecasts:
@@ -334,6 +382,7 @@ per-flight ML model cannot do on its own.
 simulsi aviation example DIR          # schedule, connections, ops.yaml, live status, history
 simulsi aviation forecast schedule.csv -c connections.csv --ops ops.yaml [--weather "HUB 15:00-18:00 0.4 p=0.6"]
 simulsi aviation forecast ... --status status.csv --now 12:00 [--action "cancel F1 F2"] [-o forecast.csv]
+simulsi aviation watch    schedule.csv --ops ops.yaml --feed https://ops.example/status.json --every 300 [-o latest.json]
 simulsi aviation whatif   ... --option "cancel=cancel F100 F101" --option "swap=swap T01 T02 12:00"
 simulsi aviation recover  ... [--status status.csv --now 12:00]
 simulsi aviation reserves ... --spares 0,1,2 --standby 0,1,2
@@ -342,7 +391,7 @@ simulsi aviation impact   schedule.csv changed.csv ...
 simulsi aviation calibrate history.csv --ops ops.yaml -o delays.yaml
 simulsi aviation backtest history.csv --ops ops.yaml --delays delays.yaml
 simulsi aviation history bts.csv --carrier AS [--date 2026-06-21 -o day.csv --status-at 17:00 --status-out st.csv]
-simulsi aviation calibrate bts.csv --carrier AS --days 20 --fit-turns --write-ops as_ops.yaml
+simulsi aviation calibrate bts.csv --carrier AS --days 20 --fit-turns --write-ops as_ops.yaml [--recalibrate]
 simulsi aviation backtest  bts.csv --carrier AS --skip-days 20 --ops as_ops.yaml --live-at 17:00
 simulsi aviation turnaround [--team clean=1]
 simulsi aviation mct | overbooking --seats 180 --show-rate 0.92 | checkin schedule.csv --airport HUB
@@ -356,13 +405,18 @@ These are deliberate simplifications. Each could be refined if the data
 supports it:
 
 * **Distances.** Block time stands in for distance, for example in the
-  EU261 bands.
+  EU261 bands. (`simulsi.spatial.Network.from_coordinates` can give
+  great-circle distances when you have airport coordinates.)
 * **Crew rules.** Duty is checked against a single limit; there is no
-  rest-rule engine.
-* **Spare aircraft.** Spares do not need positioning flights.
+  rest-rule engine. The model simulates one day at a time, so minimum
+  rest between duties, which spans nights, is outside it.
 * **Swaps.** Swaps of rotations between tails are only proposed at the
-  same airport.
+  same airport. Spares can be ferried (`spare_ferry_minutes`), but the
+  ferry is a fixed time, not a scheduled flight.
 * **Airspace and holding.** Runway capacity is a rate per airport; there
   is no airspace or holding-stack model.
-* **Passengers.** Misconnected passengers are counted and costed, but not
-  rebooked onto later flights.
+* **Rebooking.** Passengers are re-accommodated on direct flights only,
+  not on multi-leg itineraries or other airlines.
+* **Storms.** Mass cancellations ahead of a storm happen only if the
+  storm is given as a weather event with `c=`; the model has no weather
+  forecast of its own (see the case study).

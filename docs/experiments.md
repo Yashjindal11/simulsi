@@ -86,6 +86,11 @@ name and version, git commit, timestamp, seeds, environment and runtime.
   around a second, so the pool is kept and reused by later experiments in the
   same Python process (call `simulsi.experiments.shutdown_workers()` after
   editing a model file in a notebook).
+* **Clusters** - `exp.run(executor=...)` runs replications on any
+  `concurrent.futures.Executor`, for example a Dask cluster:
+  `Client("tcp://scheduler:8786").get_executor()` (or
+  `simulsi experiment config.yaml --dask tcp://scheduler:8786`). Results
+  are identical to a local run because seeds are fixed in advance.
 * **Run until precise** - `exp.run_until(0.05, ["resource.server.wait.mean"])`
   keeps adding replications (reusing earlier ones) until every listed metric
   in every scenario has a relative CI half-width of 5%, or `max_replications`

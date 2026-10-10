@@ -317,6 +317,7 @@ class OpsConfig:
     def to_dict(self) -> dict[str, Any]:
         out = {f.name: getattr(self, f.name) for f in fields(self) if f.name != "delays"}
         out["delays"] = self.delays.to_dict()
+        out["otp_recalibration"] = list(self.otp_recalibration)
         return out
 
     @classmethod
@@ -333,6 +334,9 @@ class OpsConfig:
                 kwargs[key] = DelayModel.from_dict(value or {})
             elif key == "curfew":
                 kwargs[key] = {str(a).upper(): parse_time(t) for a, t in (value or {}).items()}
+            elif key == "otp_recalibration":
+                a, b = value
+                kwargs[key] = (float(a), float(b))
             elif isinstance(value, Mapping):
                 kwargs[key] = {str(a).upper(): v for a, v in value.items()}
             else:

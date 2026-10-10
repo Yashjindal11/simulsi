@@ -278,6 +278,83 @@ Metrics (prefix `container.<name>.`): `level.mean/min/max`, `level_final`,
 checked after every event until it is true, and the yield returns the time
 it became true. Keep predicates cheap.
 
+When the predicate only depends on some resources, containers or queues,
+list them: `sim.wait_until(lambda: stock.level < 40, on=[stock])`. The
+predicate is then re-checked only when one of them changes, which makes
+many pending conditions cheap (about 8x faster in a model with hundreds of
+waiting processes).
+
+## Continuous levels
+
+A `Level` is a quantity that changes at a rate between events: a fuel
+tank, a battery, a reservoir. Processes change the rate or add to the
+value, and wait for thresholds; crossing times are computed exactly, not
+by stepping.
+
+```python
+from simulsi import Level, Simulation
+
+sim = Simulation()
+battery = Level(sim, "battery", init=80, rate=-2.0, low=0, high=100)  # drains 2 per minute
+
+
+def charger(sim):
+    while True:
+        yield battery.when(20, "down")
+        battery.set_rate(10.0)          # plug in
+        yield battery.when(100, "up")
+        battery.set_rate(-2.0)          # back to work
+
+
+sim.process(charger(sim))
+m = sim.run(until=600).metrics
+print(m["level.battery.mean"], m["level.battery.min"])
+```
+
+* `when(threshold, "up" | "down" | "any")` triggers with the time the
+  level gets there, or at once if it already is.
+* The level stays within `[low, high]`: at a bound it stops (`rate` reads
+  0) until the rate turns.
+* `add(amount)` jumps (a delivery) and returns what fitted.
+* Metrics `level.<name>.mean` (exact time average), `final`, `min`, `max`.
+
+## Movement on networks
+
+`simulsi.spatial` gives travel times on a graph of places: roads between
+depots, aisles in a warehouse, routes between airports.
+
+```python
+from simulsi import Simulation
+from simulsi.spatial import Network, grid_network
+
+roads = Network([("depot", "A", 12), ("A", "B", 7), ("depot", "B", 25)], name="roads")
+print(roads.travel_time("depot", "B"), roads.path("depot", "B"))   # 19.0 ['depot', 'A', 'B']
+
+sim = Simulation()
+
+
+def van(sim):
+    here = "depot"
+    for stop in ["A", "B", "depot"]:
+        yield from roads.trip(sim, here, stop)
+        here = stop
+
+
+sim.process(van(sim))
+print(sim.run().metrics["network.roads.trip_time.mean"])
+```
+
+* `Network(links, directed=False)`, `add_link`, `remove_link` (a closed
+  road), `travel_time`, `path`, `nearest(origin, candidates)` and
+  `matrix()`. Shortest paths use Dijkstra and are cached.
+* `grid_network(width, height, diagonal=False, blocked=[...])` builds a
+  grid of `(x, y)` cells with walls.
+* `Network.from_coordinates(points, speed=..., metric="haversine")` links
+  places by straight-line or great-circle distance.
+* `yield from net.trip(sim, a, b, on_leg=...)` moves edge by edge, so the
+  clock advances by the travel time; `on_leg(from, to, time)` can log or
+  animate positions.
+
 ## Schedules and time-varying arrivals
 
 ```python

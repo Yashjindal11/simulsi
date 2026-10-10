@@ -366,6 +366,7 @@ def test_cli_history_and_bts_options(tmp_path: Path, capsys: pytest.CaptureFixtu
                 "AS",
                 "--quick",
                 "--fit-turns",
+                "--recalibrate",
                 "--write-ops",
                 str(tmp_path / "ops.yaml"),
             ]
@@ -405,6 +406,8 @@ def test_recalibration_and_bts_causes(tmp_path: Path, schedule: Schedule) -> Non
     f = next(x for x in fc0.flights if 0.2 < fc0.flights[x].p_on_time < 0.8)
     p0, p1 = fc0.flights[f].p_on_time, fc1.flights[f].p_on_time
     assert (p1 - 0.5) * (p0 - 0.5) > 0 and abs(p1 - 0.5) > abs(p0 - 0.5)
+    kinder = forecast(schedule, HUB.replace(otp_recalibration=(1.5, 1.0)), replications=20)
+    assert kinder.summary()["otp"]["mean"] > fc0.summary()["otp"]["mean"] + 0.02
     path = tmp_path / "c.csv"
     path.write_text(
         "FlightDate,Reporting_Airline,Flight_Number_Reporting_Airline,Tail_Number,Origin,Dest,CRSDepTime,DepDelay,CRSArrTime,ArrDelay,Cancelled,CancellationCode,CarrierDelay,WeatherDelay,NASDelay,SecurityDelay,LateAircraftDelay\n"

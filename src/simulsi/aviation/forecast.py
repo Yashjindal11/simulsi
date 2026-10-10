@@ -119,6 +119,7 @@ class Forecast:
             }
             for c in schedule.connections
         ]
+        raw_minus_recal: list[tuple[float, float]] = []
         for f in schedule.flights:
             outs = [d.flights[f.id] for d in days]
             flown = [o for o in outs if not o.cancelled]
@@ -150,7 +151,11 @@ class Forecast:
                 std=f.std,
                 sta=f.sta,
                 pax=f.pax,
-                p_on_time=_recalibrate(float(np.sum(arr <= config.on_time)) / n, config, n),
+                p_on_time=(
+                    float(np.sum(arr <= config.on_time)) / n
+                    if status in ("landed", "cancelled")  # already known: nothing to correct
+                    else _recalibrate(float(np.sum(arr <= config.on_time)) / n, config, n)
+                ),
                 p_departure_on_time=float(np.sum(dep <= config.on_time)) / n,
                 p_cancel=1 - len(flown) / n,
                 dep_delay_p50=_quantile(dep, 0.5),
@@ -164,6 +169,17 @@ class Forecast:
                 main_cause=main,
                 status=status,
             )
+            raw_minus_recal.append(
+                (
+                    len(flown) / n,
+                    float(np.sum(arr <= config.on_time)) / n - self.flights[f.id].p_on_time,
+                )
+            )
+        weight = sum(w for w, _ in raw_minus_recal)
+        if "otp" in self.metric_samples and weight > 0 and config.otp_recalibration != (0.0, 1.0):
+            # keep the network OTP consistent with the recalibrated flight probabilities
+            shift = sum(d for _, d in raw_minus_recal) / weight
+            self.metric_samples["otp"] = np.clip(self.metric_samples["otp"] - shift, 0.0, 1.0)
 
     # -- views -----------------------------------------------------------------
 

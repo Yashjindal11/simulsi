@@ -4,7 +4,7 @@
 simulsi init [DIR] [--force]
 simulsi validate TARGET [-p KEY=VALUE ...] [--smoke T]
 simulsi run TARGET [-p KEY=VALUE ...] [--seed N] [--duration T] [--warmup T] [-m METRIC ...] [--trace FILE] [--json]
-simulsi experiment CONFIG [-r N] [-w N] [--seed N] [-o DIR] [--checkpoint FILE] [--adjust METHOD] [--until-precision P] [-q]
+simulsi experiment CONFIG [-r N] [-w N] [--seed N] [-o DIR] [--checkpoint FILE] [--adjust METHOD] [--until-precision P] [--dask ADDRESS] [-q]
 simulsi analyze RESULTS [-m METRIC ...] [--baseline NAME] [--confidence C] [--precision P] [--adjust METHOD] [--json]
 simulsi warmup TARGET [-p KEY=VALUE ...] [--series KEY] [-r N] [--duration T] [--bins N] [--json]
 simulsi fit FILE [--column NAME] [--candidates NAME ...] [--criterion aic|bic|ks] [--json]
@@ -13,7 +13,7 @@ simulsi models [NAME]
 simulsi pareto TARGET -o METRIC:min|max ... (--vary KEY=V1,V2,... | --presets) [-p KEY=VALUE ...] [-r N] [--all] [--plot FILE] [--json]
 simulsi whatif TARGET (--vary KEY=V1,V2,... | --presets) [-p KEY=VALUE ...] [-m METRIC ...] [-r N] [-w N] [--seed N] [--duration T] [--json]
 simulsi benchmark [--sizes N ...] [--workers N ...] [--replications N] [--no-memory] [--json]
-simulsi visualize TARGET [-o DIR] [-m METRIC ...] [--backend matplotlib|plotly] [--format png|svg|pdf]
+simulsi visualize TARGET [-o DIR] [-m METRIC ...] [--backend matplotlib|plotly] [--format png|svg|pdf] [--gif]
 simulsi ui [RESULTS ...] [--model REF ...] [--host H] [--port P] [--no-browser]
 ```
 
@@ -46,6 +46,8 @@ Parameters given with `-p key=value` are parsed as YAML scalars, so
 * **experiment** runs every scenario x replication, prints a summary with
   CIs and a comparison with the baseline, applies the cost model and saves
   `experiment.json`, `replications.csv`, `summary.csv` (and Parquet if asked).
+  `--dask tcp://host:8786` runs the replications on a Dask cluster
+  (`pip install 'dask[distributed]'`).
 * **analyze** reloads saved results: summary, comparison, provenance, and
   with `--precision 0.05` how many replications each metric needs.
 * **warmup** suggests a warm-up period: it averages a recorded time series
@@ -69,7 +71,8 @@ Parameters given with `-p key=value` are parsed as YAML scalars, so
   machine, with tracemalloc peak memory.
 * **visualize** plots saved results (distributions, convergence, comparison)
   or runs a model once with tracing and plots queues, utilization, timeline
-  and trajectories.
+  and trajectories. With `--gif` it also records `replay.gif`, an animated
+  replay of the run's queues and utilization.
 * **ui** starts the local web dashboard ([details](visualization.md#web-dashboard)).
 * **aviation** works on airline schedules: `example`, `forecast` (day ahead,
   or live with `--status` and `--now`), `whatif`, `recover`, `reserves`,

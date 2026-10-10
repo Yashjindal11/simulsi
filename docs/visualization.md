@@ -102,7 +102,13 @@ In Jupyter, results display as tables: `ExperimentResult`,
 ```bash
 simulsi visualize results/my-study --out plots                # distributions, convergence, comparison
 simulsi visualize examples/queue.py --out plots --backend plotly   # one traced run
+simulsi visualize examples/queue.py --out plots --gif              # plus an animated replay.gif
 ```
+
+In Python, `simulsi.visualization.animate_series(result, "run.gif")`
+animates a run's recorded time series (queue lengths, busy units,
+container levels) as simulated time passes. It writes a GIF with Pillow,
+or MP4 when ffmpeg is installed and the path ends in `.mp4`.
 
 ## Web dashboard
 

@@ -652,28 +652,32 @@ def calibrate(
     if not days:
         raise ConfigError("no valid historical schedules to calibrate on")
     schedules = [history.schedule(d) for d in days]
-    for _ in range(iterations):
-        trial = cfg.replace(delays=model)
-        sim: dict[str, list[float]] = {}
-        for k, sched in enumerate(schedules):
-            for r in range(replications):
-                day = simulate_day(sched, trial, seed=derive_seed(seed, f"calibrate{k}", r))
-                for f in sched.flights:
-                    o = day.flights[f.id]
-                    if not o.cancelled:
-                        sim.setdefault(f.origin, []).append(o.dep_delay)
-        sim_all = _departure_stats([d for v in sim.values() for d in v], late)
-        model.prob, model.mean = _nudge((model.prob, model.mean), target_all, sim_all)
-        for key in list(model.table):
-            origin = key.split("@")[0]
-            if origin in sim and origin in target:
-                model.table[key] = _nudge(
-                    model.table[key], target[origin], _departure_stats(sim[origin], late)
-                )
-    model.prob, model.mean = round(model.prob, 4), round(model.mean, 2)
-    model.table = {k: (round(p, 4), round(m, 2)) for k, (p, m) in model.table.items()}
+
+    def match_moments(rounds: int) -> None:
+        for _ in range(rounds):
+            trial = cfg.replace(delays=model)
+            sim: dict[str, list[float]] = {}
+            for k, sched in enumerate(schedules):
+                for r in range(replications):
+                    day = simulate_day(sched, trial, seed=derive_seed(seed, f"calibrate{k}", r))
+                    for f in sched.flights:
+                        o = day.flights[f.id]
+                        if not o.cancelled:
+                            sim.setdefault(f.origin, []).append(o.dep_delay)
+            sim_all = _departure_stats([d for v in sim.values() for d in v], late)
+            model.prob, model.mean = _nudge((model.prob, model.mean), target_all, sim_all)
+            for key in list(model.table):
+                origin = key.split("@")[0]
+                if origin in sim and origin in target:
+                    model.table[key] = _nudge(
+                        model.table[key], target[origin], _departure_stats(sim[origin], late)
+                    )
+
+    match_moments(iterations)
     if day_effect:
         model.day_sigma = _fit_day_sigma(history, cfg, model, schedules, replications, seed, late)
+    model.prob, model.mean = round(model.prob, 4), round(model.mean, 2)
+    model.table = {k: (round(p, 4), round(m, 2)) for k, (p, m) in model.table.items()}
     model.cancel_rate = _fit_cancel_rate(history, cfg, model, schedules, replications, seed)
     return model
 
@@ -808,7 +812,7 @@ def _fit_day_sigma(
     for _ in range(2):  # the share of late flights reacts less than one-for-one to the factor
         got = _late_share_spread(cfg, replace(model, day_sigma=sigma), schedules, reps, seed, late)
         extra = math.sqrt(max(1e-9, got**2 - base**2))
-        sigma = min(1.5, sigma * math.sqrt(target**2 - base**2) / extra)
+        sigma = min(1.0, sigma * math.sqrt(target**2 - base**2) / extra)
     return round(sigma, 3)
 
 

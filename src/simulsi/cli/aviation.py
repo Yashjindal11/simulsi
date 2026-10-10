@@ -287,7 +287,7 @@ def _subset(history: Any, dates: list[str]) -> Any:
 def cmd_calibrate(args: argparse.Namespace) -> int:
     import yaml
 
-    from simulsi.aviation import calibrate, fit_delay_model, fit_turn_times
+    from simulsi.aviation import calibrate, fit_delay_model, fit_recalibration, fit_turn_times
 
     history = _history(args)
     if args.days:
@@ -305,7 +305,14 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
     if args.output:
         Path(args.output).write_text(text)
     if args.write_ops:
-        cfg.replace(delays=model).to_yaml(args.write_ops)
+        ops = cfg.replace(delays=model)
+        if args.recalibrate:
+            ops = ops.replace(
+                otp_recalibration=fit_recalibration(
+                    history, ops, dates=history.dates[-8:], seed=args.seed
+                )
+            )
+        ops.to_yaml(args.write_ops)
     summary = history.summary()
     _out(
         f"history: {summary['days']:.0f} days, {summary['flights']:.0f} flights, "
@@ -556,6 +563,11 @@ def add_parser(sub: Any) -> None:
     s.add_argument("--write-ops", metavar="FILE", help="write full operating rules with the fit")
     s.add_argument(
         "--fit-turns", action="store_true", help="also fit minimum turn times per airport"
+    )
+    s.add_argument(
+        "--recalibrate",
+        action="store_true",
+        help="also fit on-time probability recalibration (Platt) into --write-ops",
     )
     s.add_argument(
         "--days", type=int, help="use only the first N days (keep the rest for a backtest)"

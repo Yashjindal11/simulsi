@@ -6,32 +6,34 @@ Suggestions are welcome as [issues](https://github.com/Yashjindal11/simulsi/issu
 
 ## Next
 
-- **Faster core.** The process engine takes about 1.6x as long as SimPy on
-  a like-for-like queue (see the
+- **Faster core.** The process engine takes about 1.7x as long as SimPy on
+  a like-for-like M/M/2 queue (see the
   [benchmarks](https://github.com/Yashjindal11/simulsi/tree/main/benchmarks)).
-  The plan is to keep the package pure Python and remove more per-event
-  work. A compiled extension (Cython or mypyc) would complicate wheels for
-  every platform and the in-browser demo, so it is only an option if the
-  pure-Python route stalls.
-- **Distributed experiments.** Experiments already run on local worker
-  processes. An optional Ray or Dask backend for clusters fits the existing
-  `workers=` design, but it is a dependency-heavy feature that needs real
-  cluster testing first.
-- **Event-driven `wait_until`.** Predicates are checked after every event.
-  An opt-in form that re-checks only when given resources or containers
-  change would make many pending conditions cheap.
-- **Spatial and network models.** Movement on grids and road or airline
-  networks with travel times, for richer epidemic, ride-hailing and
-  logistics models.
-- **Continuous dynamics.** Levels that change continuously between events
-  (tanks, batteries, fluids) with threshold-crossing events.
-- **More flowchart features.** Batching, split/join and resource schedules
-  driven by parameters in YAML flowcharts, and a visual flowchart view in
-  the dashboard.
+  A profile shows no single hot spot left: the gap is spread over the
+  statistics simulsi collects by default on every grant and release
+  (time-weighted busy units and queue length, waits), the process
+  bookkeeping that makes deadlock warnings and checkpoints possible, and
+  the event queue. The package stays pure Python; a compiled extension
+  (Cython or mypyc) would complicate wheels for every platform and the
+  in-browser demo, so it is only an option if users hit real limits.
+- **Ray backend.** Experiments run on any `concurrent.futures` executor
+  (local processes or Dask). Ray has no such executor built in, so it
+  needs a small adapter and real cluster testing.
+- **Flowchart view.** A visual view of YAML flowcharts in the dashboard.
+- **Crew pairings across days.** The airline twin simulates one day, so
+  crew rest rules that span nights are out of its reach today.
 
 ## Done recently
 
 See the [changelog](https://github.com/Yashjindal11/simulsi/blob/main/CHANGELOG.md):
+event-driven `wait_until(on=[...])`; continuous `Level`s with exact
+threshold crossings; movement on networks and grids (`simulsi.spatial`);
+batch and parallel (split/join) stations in YAML flowcharts; experiments
+on Dask clusters; animated GIF replays;
+airline operations on real data (delay causes, airport good and bad days,
+cancellations, storm cancellations, probability recalibration, passenger
+rebooking, ferried spares, a live status feed and recovery and reserve
+planning in the dashboard);
 airline operations (day-ahead and live forecasts, recovery search, reserve
 and buffer planning, calibration and backtesting);
 YAML flowchart models; side-by-side replay; fifteen built-in models with

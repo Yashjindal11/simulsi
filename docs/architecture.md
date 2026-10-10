@@ -106,7 +106,9 @@ model is pickled by reference (module + qualified name); models loaded from
 files by the CLI are re-imported in each worker by an initializer. Results
 come back in task order. Start-up cost (about a second with the `spawn`
 start method used on macOS and Windows) makes parallelism worthwhile only when
-replications take longer than that. See [benchmarks](https://github.com/Yashjindal11/simulsi/blob/main/benchmarks/README.md).
+replications take longer than that. `Experiment.run(executor=...)` accepts
+any other `concurrent.futures.Executor` (a Dask cluster's, for example).
+See [benchmarks](https://github.com/Yashjindal11/simulsi/blob/main/benchmarks/README.md).
 
 ## Checkpointing
 
@@ -155,9 +157,10 @@ The engine is pure Python. Measured numbers are in
 
 ## Known limitations
 
-* No continuous/system-dynamics integration. State-based waits
-  (`sim.wait_until`) re-check their predicate after every event, so many
-  pending predicates slow a run down.
+* Continuous quantities are piecewise linear (`Level`); there is no ODE
+  or system-dynamics integrator. State-based waits (`sim.wait_until`)
+  without `on=` re-check their predicate after every event, so many
+  such pending predicates slow a run down.
 * Flow and state graphs are observed from a run, not derived statically.
 * Sobol indices assume independent inputs; correlated inputs need other methods.
 * The built-in optimiser and Gaussian-process surrogate are meant for
